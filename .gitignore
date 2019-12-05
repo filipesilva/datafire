@@ -1,0 +1,8 @@
+node_modules
+public/js
+out
+.shadow-cljs
+.nrepl-port
+.clj-kondo/.cache
+yarn-error.log
+report.html
