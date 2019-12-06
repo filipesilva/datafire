@@ -1,2 +1,3 @@
 {:lint-as {devcards.core/defcard cljs.core/def
+           devcards.core/defcard-rg cljs.core/def
            devcards.core/deftest cljs.core/def}}
