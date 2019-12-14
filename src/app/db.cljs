@@ -14,7 +14,11 @@
 (defonce initialize-firestore-app (.initializeApp firebase firebase-config))
 
 (defn fb-user-coll []
-  (.collection (.firestore firebase) "users"))
+  (let [db (.firestore firebase)
+        ; Use the emulator. This should probably be a goog.define instead.
+        _ (when true (.settings db #js {:host "localhost:8080"
+                                        :ssl false}))] 
+    (.collection db "users")))
 
 (defn parse-fb-snapshot [query-snapshot]
   (map #(assoc (js->clj (.data %) :keywordize-keys true) :id (.-id %))
