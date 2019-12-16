@@ -16,9 +16,8 @@
         :target :node-test}}
  :dependencies [[reagent "0.8.1"]
                 [devcards "0.2.6"]
-                [cider/piggieback "0.4.1"]
-                [cider/cider-nrepl "0.22.4"]
-                [datascript "0.18.7"]]
+                [datascript "0.18.7"]
+                [datascript-transit "0.3.0"]]
  :dev-http {3000 "public"}
  :nrepl {:port 3333}
  :source-paths ["src"]}
