@@ -7,9 +7,9 @@
 (def seid-schema {seid-key {:db/unique :db.unique/identity
                             :db/index true}})
 
-(defn- new-seid [conn]
+(defn- new-seid [link]
   ; Note: this doesn't actually create a doc.
-  (.-id (.doc (.collection (.firestore firebase) (:path conn)))))
+  (.-id (.doc (.collection (.firestore firebase) (:path link)))))
 
 (defn- datom->op [datom]
   [(if (pos? (:tx datom))
@@ -20,18 +20,19 @@
 ; TODO:
 ; - add serverside timestamp
 ; - add fb index (if needed? it might be auto)
-(defn- save-to-firestore! [conn tx-data]
-  (.add (.collection (.firestore firebase) (:path conn)) 
+; - add docs that this returns a promise with the doc (and thus seid)
+(defn- save-to-firestore! [link tx-data]
+  (.add (.collection (.firestore firebase) (:path link)) 
         #js {:t (dt/write-transit-str tx-data)}))
 
 ; circle back on the firestore-transact! to look up seid refs
-(defn- load-transaction! [conn tx-data]
+(defn- load-transaction! [link tx-data]
   (loop [input-ops tx-data
          output-ops []
          seid->tempid {}
          max-tempid 0]
     (if (empty? input-ops)
-      (d/transact! (:datascript-conn conn) output-ops)
+      (d/transact! (:conn link) output-ops)
       (let [op (first input-ops)
             fb-eid (op 1)
             seid (and (= seid-key (op 2)) (op 3))
@@ -40,7 +41,7 @@
                                 (assoc seid->tempid seid new-max-tempid)
                                 seid->tempid)
             ds-eid (or (get new-seid->temp-id fb-eid)
-                       (:db/id (d/entity @(:datascript-conn conn) [seid-key fb-eid])))
+                       (:db/id (d/entity @(:conn link) [seid-key fb-eid])))
             new-op (assoc op 1 ds-eid)]
         (if (nil? ds-eid)
           (throw (str "Could not find eid for " seid))
@@ -72,53 +73,79 @@
 ; - add spec to validate data coming in and out
 ; - really need to revisit tx/tx-data/ops names
 ; - add error-cb?
-(defn save-transaction! [conn tx]
-  (loop [tx-data (:tx-data (d/with @(:datascript-conn conn) tx))
-         ops []
-         eid->seid {}]
-    (if (empty? tx-data)
-      (save-to-firestore! conn ops)
-      (let [datom (first tx-data)
-            eid (:e datom)
-            new? (not (contains? eid->seid eid))
-            seid (get eid->seid (:e datom) (new-seid conn))
-            new-ops (conj ops (datom->op (assoc datom :e seid)))]
-        (recur (rest tx-data)
+; - caveat, no ref to non-existing entity
+; - after I have tests, check if it's ok to just leave a tempid on new entities
+(defn save-transaction! [link tx]
+  (let [report (d/with @(:conn link) tx)
+        tempids (dissoc (:tempids report) :db/current-tx)]
+    (print tempids)
+    ; seed initial ops and eid->seid from tempids
+    (loop [tx-data (:tx-data report)
+           ops []
+           eid->seid {}]
+      (if (empty? tx-data)
+        (save-to-firestore! link ops)
+        (let [datom (first tx-data)
+              eid (:e datom)
+              new? (not (contains? eid->seid eid))
+              seid (get eid->seid (:e datom) (new-seid link))
+              new-ops (conj ops (datom->op (assoc datom :e seid)))]
+          ; on datom->op have to check if :a is a ref
+          ; lookup seid for ref on 
+          ; error out if ref but no seid
+          (recur (rest tx-data)
                  ; Prepend seid ops, append others. 
-                 ; This way the seid op will always be read first.
-               (if new?
-                 (vec (concat [[:db/add seid seid-key seid]] new-ops))
-                 new-ops)
-               (if new?
-                 (assoc eid->seid eid seid)
-                 eid->seid))))))
+                 ; This way the seid op will always be loaded first.
+                 (if new?
+                   (vec (concat [[:db/add seid seid-key seid]] new-ops))
+                   new-ops)
+                 (if new?
+                   (assoc eid->seid eid seid)
+                   eid->seid)))))))
 
-(defn create-conn
-  ([path] (create-conn path nil))
-  ([path schema]
-   (with-meta
-     {:datascript-conn (d/create-conn (merge schema seid-schema))
-      :path path
-      :known-ids (atom #{})}
-     {:unsubscribe (atom nil)})))
+; change this name to something less confusing
+(defn create-link
+  [conn path]
+  (with-meta
+    {:conn conn
+     :path path
+     :known-stx (atom #{})
+      ; move these maps onto the connection?
+      ; pros:
+      ; - not on fb (but that can be done either way)
+      ; - not taking up space on ds
+      ; - don't need custom schema
+      ; - can make this conn a big atom instead of having many atoms inside
+      ; - can just populate existing ds connection (that makes enough sense because of the 
+      ;   separate save-transaction!)
+      ; - can still do it later and optionally on load-transaction!
+      ; cons:
+      ; - less meta
+      ; - can't move ds-conn around to another fb-conn 
+      ;   - but could with an option to do it on load
+      ;   - but move around anyway because the known-stx are local to the link and would
+      ;     be duplicated
+     :seid->eid (atom {})
+     :eid->eid (atom {})}
+    {:unsubscribe (atom nil)}))
 
-(defn unlisten! [conn]
-  (let [unsubscribe @(:unsubscribe (meta conn))]
+(defn unlisten! [link]
+  (let [unsubscribe @(:unsubscribe (meta link))]
     (when unsubscribe (unsubscribe))
-    (reset! (:unsubscribe (meta conn)) nil)))
+    (reset! (:unsubscribe (meta link)) nil)))
 
 (defn listen! 
-  ([conn] (listen! conn js/undefined))
-  ([conn error-cb] 
-   (unlisten! conn)
-   (reset! (:unsubscribe (meta conn))
-           (.onSnapshot (.collection (.firestore firebase) (:path conn))
+  ([link] (listen! link js/undefined))
+  ([link error-cb] 
+   (unlisten! link)
+   (reset! (:unsubscribe (meta link))
+           (.onSnapshot (.collection (.firestore firebase) (:path link))
                         (fn [snapshot]
                           (.forEach (.docChanges snapshot)
                                     #(let [data (.data (.-doc %))
                                            id (.-id (.-doc %))]
                                        (when (and (= (.-type %) "added")
-                                                  (not (contains? @(:known-ids conn) id)))
-                                         (load-transaction! conn (dt/read-transit-str (.-t data)))
-                                         (swap! (:known-ids conn) conj id)))))
+                                                  (not (contains? @(:known-stx link) id)))
+                                         (load-transaction! link (dt/read-transit-str (.-t data)))
+                                         (swap! (:known-stx link) conj id)))))
                         error-cb))))

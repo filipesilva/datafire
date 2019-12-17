@@ -7,7 +7,7 @@
             [datascript-firebase.core :as df]
             ["firebase/app" :as firebase]
             ["firebase/firestore"]
-            [app.db :refer [datascript-conn firebase-conn]]))
+            [app.db :refer [link conn]]))
 
 (defn parse-fb-snapshot [query-snapshot]
   (map #(assoc (js->clj (.data %) :keywordize-keys true) :id (.-id %))
@@ -19,16 +19,29 @@
                  #(reset! a (parse-fb-snapshot %)))
     a))
 
-(defn ds-add-user [user]
-  (df/save-transaction! firebase-conn [user]))
+(defn ds-add [user]
+  (.then (df/save-transaction! link [user])
+         (print "added ada")))
+
+(defn ds-pull []
+  (print (d/pull @conn '[*] 2)))
 
 (defn add-ada []
-  (let [ada {:db/id -1 :first "Ada" :last "Lovelace" :born "1815"}]
+  (let [ada {:db/id -1 :first "Ada" :last "Lovelace" :born "1815"}
+        ada-ref {:db/id -1 :ada-ref 1}]
     [:<>
      [:div
       "Click to add an Ada Lovelace user "
       [:input {:type "button" :value "Add Ada"
-               :on-click #(ds-add-user ada)}]]
+               :on-click #(ds-add ada)}]]
+     [:div
+      "Click to add an ada-ref to 1"
+      [:input {:type "button" :value "Add Ada ref "
+               :on-click #(ds-add ada-ref)}]]
+     [:div
+      "Click to pull on 2"
+      [:input {:type "button" :value "pull 2 "
+               :on-click #(ds-pull)}]]
      [:div
       "Click to clear the firebase emulator database and reload "
       [:input {:type "button" :value "Clear"
@@ -55,7 +68,7 @@
 
 (defcard-rg add-ada-card add-ada)
 
-(defcard ds-conn datascript-conn)
+(defcard ds-conn conn)
 
 (defcard firestore-tx (fb-tx-atom) [] {:history false})
 
