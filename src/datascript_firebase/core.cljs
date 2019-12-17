@@ -7,6 +7,9 @@
 (def seid-schema {seid-key {:db/unique :db.unique/identity
                             :db/index true}})
 
+(defn- server-timestamp []
+  (.serverTimestamp (.-FieldValue (.-firestore firebase))))
+
 (defn- new-seid [link]
   ; Note: this doesn't actually create a doc.
   (.-id (.doc (.collection (.firestore firebase) (:path link)))))
@@ -16,8 +19,6 @@
      :db/add
      :db/retract)
    (:e datom) (:a datom) (:v datom)])
-
-
 
 (defn- resolve-id [id local global]
   (or (get local id)
@@ -42,7 +43,8 @@
 ; - add docs that this returns a promise with the doc (and thus seid)
 (defn- save-to-firestore! [link tx-data]
   (.add (.collection (.firestore firebase) (:path link)) 
-        #js {:t (dt/write-transit-str tx-data)}))
+        #js {:t (dt/write-transit-str tx-data)
+             :ts (server-timestamp)}))
 
 (defn- transact-to-datascript! [link ops seid->tempid]
   (let [tempids (dissoc (:tempids (d/transact! (:conn link) ops)) :db/current-tx)]
@@ -98,6 +100,7 @@
 ; - add error-cb?
 ; - caveat, no ref to non-existing entity
 ; - after I have tests, check if it's ok to just leave a tempid on new entities
+; - test multiple tempids, including refs
 (defn save-transaction! [link tx]
   (let [report (d/with @(:conn link) tx)
         refs (:db.type/ref (:rschema @(:conn link)))]
@@ -152,7 +155,7 @@
   ([link error-cb] 
    (unlisten! link)
    (reset! (:unsubscribe (meta link))
-           (.onSnapshot (.collection (.firestore firebase) (:path link))
+           (.onSnapshot (.orderBy (.collection (.firestore firebase) (:path link)) "ts")
                         (fn [snapshot]
                           (.forEach (.docChanges snapshot)
                                     #(let [data (.data (.-doc %))
