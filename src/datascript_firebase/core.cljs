@@ -119,28 +119,27 @@
                  (conj ops (resolve-op op refs new-eid->seid @(:eid->seid link)))
                  new-eid->seid))))))
 
-; change this name to something less confusing
+(defn- listen-to-firestore [link error-cb]
+  (.onSnapshot (.orderBy (.collection (.firestore firebase) (:path link)) "ts")
+               (fn [snapshot]
+                 (.forEach (.docChanges snapshot)
+                           #(let [data (.data (.-doc %))
+                                  id (.-id (.-doc %))]
+                              (print (.-type %))
+                              (when (and (= (.-type %) "added")
+                                         (not (contains? @(:known-stx link) id)))
+                                (load-transaction! link (dt/read-transit-str (.-t data)))
+                                (swap! (:known-stx link) conj id)))))
+               error-cb))
+
 (defn create-link
   [conn path]
   (with-meta
     {:conn conn
      :path path
+     :type :cloud-firestore
+     :granularity :tx
      :known-stx (atom #{})
-      ; move these maps onto the connection?
-      ; pros:
-      ; - not on fb (but that can be done either way)
-      ; - not taking up space on ds
-      ; - don't need custom schema
-      ; - can make this conn a big atom instead of having many atoms inside
-      ; - can just populate existing ds connection (that makes enough sense because of the 
-      ;   separate save-transaction!)
-      ; - can still do it later and optionally on load-transaction!
-      ; cons:
-      ; - less meta
-      ; - can't move ds-conn around to another fb-conn 
-      ;   - but could with an option to do it on load
-      ;   - but move around anyway because the known-stx are local to the link and would
-      ;     be duplicated
      :seid->eid (atom {})
      :eid->seid (atom {})}
     {:unsubscribe (atom nil)}))
@@ -154,17 +153,4 @@
   ([link] (listen! link js/undefined))
   ([link error-cb] 
    (unlisten! link)
-   (reset! (:unsubscribe (meta link))
-           (.onSnapshot (.orderBy (.collection (.firestore firebase) (:path link)) "ts")
-                        (fn [snapshot]
-                          (.forEach (.docChanges snapshot)
-                                    #(let [data (.data (.-doc %))
-                                           id (.-id (.-doc %))]
-                                       (print (.-type %))
-                                       (when (and (= (.-type %) "added")
-                                                  (not (contains? @(:known-stx link) id)))
-                                         (load-transaction! link (dt/read-transit-str (.-t data)))
-                                         (swap! (:known-stx link) conj id)))))
-                        error-cb))))
-
-
+   (reset! (:unsubscribe (meta link)) (listen-to-firestore link error-cb))))
