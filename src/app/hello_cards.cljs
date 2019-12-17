@@ -3,6 +3,7 @@
   ; is importing it in such a way that it needs to be imported beforehand.
   (:require [reagent.core]
             [devcards.core :refer [defcard defcard-rg]]
+            [datascript.core :as d]
             [datascript-firebase.core :as df]
             ["firebase/app" :as firebase]
             ["firebase/firestore"]

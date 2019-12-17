@@ -40,7 +40,7 @@
                                 (assoc seid->tempid seid new-max-tempid)
                                 seid->tempid)
             ds-eid (or (get new-seid->temp-id fb-eid)
-                       (first (d/datoms @(:datascript-conn conn) :avet seid-key fb-eid)))
+                       (:db/id (d/entity @(:datascript-conn conn) [seid-key fb-eid])))
             new-op (assoc op 1 ds-eid)]
         (if (nil? ds-eid)
           (throw (str "Could not find eid for " seid))
@@ -97,7 +97,7 @@
   ([path] (create-conn path nil))
   ([path schema]
    (with-meta
-     {:datascript-conn (d/create-conn (merge schema {seid-key seid-schema}))
+     {:datascript-conn (d/create-conn (merge schema seid-schema))
       :path path
       :known-ids (atom #{})}
      {:unsubscribe (atom nil)})))
