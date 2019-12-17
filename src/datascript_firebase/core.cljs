@@ -160,6 +160,7 @@
                           (.forEach (.docChanges snapshot)
                                     #(let [data (.data (.-doc %))
                                            id (.-id (.-doc %))]
+                                       (print (.-type %))
                                        (when (and (= (.-type %) "added")
                                                   (not (contains? @(:known-stx link) id)))
                                          (load-transaction! link (dt/read-transit-str (.-t data)))

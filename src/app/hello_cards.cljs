@@ -35,12 +35,12 @@
       [:input {:type "button" :value "Add Ada"
                :on-click #(ds-add ada)}]]
      [:div
-      "Click to add an ada-ref to 1"
-      [:input {:type "button" :value "Add Ada ref "
+      "Click to add an ada-ref to 1 "
+      [:input {:type "button" :value "Add Ada ref"
                :on-click #(ds-add ada-ref)}]]
      [:div
-      "Click to pull on 2"
-      [:input {:type "button" :value "pull 2 "
+      "Click to pull on 2 "
+      [:input {:type "button" :value "pull 2"
                :on-click #(ds-pull)}]]
      [:div
       "Click to clear the firebase emulator database and reload "
@@ -48,7 +48,15 @@
                :on-click #(.then (js/fetch
                                   "http://localhost:8080/emulator/v1/projects/datascript-firebase/databases/(default)/documents"
                                   #js {:method "DELETE"})
-                                 (fn [] (.reload js/window.location)))}]]]))
+                                 (fn [] (.reload js/window.location)))}]]
+     [:div
+      "Click to disable network "
+      [:input {:type "button" :value "disable"
+               :on-click #(.disableNetwork (.firestore firebase))}]]
+     [:div
+      "Click to enable network "
+      [:input {:type "button" :value "enable"
+               :on-click #(.enableNetwork (.firestore firebase))}]]]))
 
 ; Different approach:
 ; - use something that guarantees ordering, but not necessarily uniqueness, (database pushids,

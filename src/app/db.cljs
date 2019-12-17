@@ -13,6 +13,9 @@
                           :appId "1:990887725503:web:54a0534e1ba1c52a2e390a"})
 (defonce initialize-firestore-app (.initializeApp firebase firebase-config))
 (defonce use-emulator (.settings (.firestore firebase) #js {:host "localhost:8080" :ssl false}))
+; persistence seems to be a bit wonky with the emulator clear command
+; I suppose because there's a remove event on the snapshot but we never handle it.
+; (defonce enabled-persistence (.enablePersistence (.firestore firebase)))
 (defonce schema {:ada-ref {:db/valueType :db.type/ref
                            :db/isComponent true}})
 (defonce conn (d/create-conn schema))
