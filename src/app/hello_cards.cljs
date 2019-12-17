@@ -23,10 +23,18 @@
 
 (defn add-ada []
   (let [ada {:db/id -1 :first "Ada" :last "Lovelace" :born "1815"}]
-    [:div
-     "Click to add an Ada Lovelace user "
-     [:input {:type "button" :value "Click me!"
-              :on-click #(ds-add-user ada)}]]))
+    [:<>
+     [:div
+      "Click to add an Ada Lovelace user "
+      [:input {:type "button" :value "Add Ada"
+               :on-click #(ds-add-user ada)}]]
+     [:div
+      "Click to clear the firebase emulator database and reload "
+      [:input {:type "button" :value "Clear"
+               :on-click #(do (js/fetch
+                               "http://localhost:8080/emulator/v1/projects/datascript-firebase/databases/(default)/documents"
+                               #js {:method "DELETE"})
+                              (.reload js/window.location))}]]]))
 
 ; Different approach:
 ; - use something that guarantees ordering, but not necessarily uniqueness, (database pushids,
@@ -50,7 +58,7 @@
 
 (defcard firestore-tx (fb-tx-atom) [] {:history false})
 
-(defcard fb-conn firebase-conn)
+#_(defcard fb-conn firebase-conn)
 
 
 ; clear db
