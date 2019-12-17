@@ -13,13 +13,13 @@
                           :appId "1:990887725503:web:54a0534e1ba1c52a2e390a"})
 
 (defonce initialize-firestore-app (.initializeApp firebase firebase-config))
+(defonce use-emulator 
+  ; Use the emulator. This should probably be a goog.define instead.
+  (.settings (.firestore firebase) #js {:host "localhost:8080"
+                                        :ssl false}))
 
 (defn fb-user-coll []
-  (let [db (.firestore firebase)
-        ; Use the emulator. This should probably be a goog.define instead.
-        _ (when true (.settings db #js {:host "localhost:8080"
-                                        :ssl false}))]
-    (.collection db "users")))
+    (.collection (.firestore firebase) "users"))
 
 (defn parse-fb-snapshot [query-snapshot]
   (map #(assoc (js->clj (.data %) :keywordize-keys true) :id (.-id %))
@@ -38,18 +38,10 @@
 
 
 (defn fb-seid-coll []
-  (let [db (.firestore firebase)
-        ; Use the emulator. This should probably be a goog.define instead.
-        _ (when true (.settings db #js {:host "localhost:8080"
-                                        :ssl false}))]
-    (.collection db "seid")))
+    (.collection (.firestore firebase) "seid"))
 
 (defn fb-tx-coll []
-  (let [db (.firestore firebase)
-        ; Use the emulator. This should probably be a goog.define instead.
-        _ (when true (.settings db #js {:host "localhost:8080"
-                                        :ssl false}))]
-    (.collection db "tx")))
+    (.collection (.firestore firebase) "tx"))
 
 (defn fb-tx-atom []
   (let [a (atom [])]
@@ -58,9 +50,8 @@
     a))
 
 ; Is this ok or should I use something else?
-(def seid-key :db/seid)
-(defonce seid->eid-map {})
-(defonce eid->seid-map {})
+; it's ok if it's long-ish, there's only one extra datom for each entity.
+(def seid-key :datascript-firebase/seid)
 
 (defn new-seid []
   ; Note: this doesn't actually create a doc.
@@ -97,6 +88,7 @@
 ;   both db types
 ; - add spec to validate data coming in and out
 ; - really need to revisit tx/tx-data/ops names
+; - add error-cb?
 (defn save-transaction! [tx]
   (loop [tx-data (:tx-data (datascript/with @datascript-connection tx))
          ops []
@@ -119,13 +111,13 @@
                  eid->seid))))))
 
 ; circle back on the firestore-transact! to look up seid refs
-(defn load-transaction! [tx-data]
+(defn- load-transaction! [conn tx-data]
   (loop [input-ops tx-data
          output-ops []
          seid->tempid {}
          max-tempid 0]
     (if (empty? input-ops)
-      (datascript/transact! datascript-connection output-ops)
+      (datascript/transact! (:ds-conn @conn) output-ops)
       (let [op (first input-ops)
             fb-eid (op 1)
             seid (and (= seid-key (op 2)) (op 3))
@@ -136,8 +128,7 @@
             ; seid-key needs to be unique attr, reference or marked as `:db/index true`
             ; https://cljdoc.org/d/datascript/datascript/0.18.7/api/datascript.core#datoms
             ds-eid (or (get new-seid->temp-id fb-eid)
-                       (first (datascript/datoms @datascript-connection :avet seid-key fb-eid)))
-
+                       (first (datascript/datoms @(:ds-conn @conn) :avet seid-key fb-eid)))
             new-op (assoc op 1 ds-eid)]
         (if (and (nil? ds-eid) (nil? seid))
           (throw (str "Could not find eid for " seid " and op was not for " seid-key))
@@ -146,12 +137,37 @@
                  new-seid->temp-id
                  new-max-tempid))))))
 
-; add this on a persist-conn! function
-(.onSnapshot (fb-tx-coll)
-             (fn [s] (.forEach (.docChanges s)
-                               #(when (= (.-type %) "added")
-                                  (load-transaction! 
-                                   (dt/read-transit-str (.-t (.data (.-doc %)))))))))
-
 (defn ds-add-user [user]
   (save-transaction! [user]))
+
+(defn create-conn
+  ([conn path] (create-conn conn path :firestore))
+  ([conn path type] (atom {:ds-conn conn
+                           :path path
+                           :type type
+                           :known-ids #{}}
+                          :meta {:unsubscribe (atom nil)})))
+
+(defn unlisten! [conn]
+  (let [unsubscribe @(:unsubscribe (meta conn))]
+    (when unsubscribe (unsubscribe))
+    (reset! (:unsubscribe (meta conn)) nil)))
+
+(defn listen! 
+  ([conn] (listen! conn js/undefined))
+  ([conn error-cb] 
+   (unlisten! conn)
+   (reset! (:unsubscribe (meta conn))
+           (.onSnapshot (.collection (.firestore firebase) (:path @conn))
+                        (fn [snapshot]
+                          (.forEach (.docChanges snapshot)
+                                    #(let [data (.data (.-doc %))
+                                           id (.-id (.-doc %))]
+                                       (when (and (= (.-type %) "added")
+                                                  (not (contains? (:known-ids @conn) id)))
+                                         (load-transaction! conn (dt/read-transit-str (.-t data)))
+                                         (swap! conn update :known-ids conj id)))))
+                        error-cb))))
+
+(defonce firebase-connection (create-conn datascript-connection "tx"))
+(defonce listed-fb-conn (listen! firebase-connection))

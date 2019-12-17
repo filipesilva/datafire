@@ -4,7 +4,7 @@
   (:require [reagent.core]
             [devcards.core :refer [defcard defcard-rg]]
             [app.hello :refer [add-ada]]
-            [app.db :refer [fb-tx-atom datascript-connection]]))
+            [app.db :refer [fb-tx-atom datascript-connection firebase-connection]]))
 
 (defcard-rg add-ada-card
   add-ada)
@@ -25,8 +25,18 @@
 ; Refs show up in the schema as `:db.type/ref`. I think I'll need to have a server version of
 ; each ref in the schema
 
-(defcard datascript-connection-card
+(defcard ds-conn
   datascript-connection)
 
 (defcard firestore-tx
     (fb-tx-atom) [] {:history false})
+
+(defcard fb-conn
+    firebase-connection)
+
+
+; clear db
+; https://firebase.google.com/docs/emulator-suite/connect_and_prototype?database=Firestore
+
+; cache folders for emulators
+; https://firebase.google.com/docs/emulator-suite/install_and_configure#integrate_with_your_ci_system
