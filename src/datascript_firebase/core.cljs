@@ -17,6 +17,25 @@
      :db/retract)
    (:e datom) (:a datom) (:v datom)])
 
+
+
+(defn- resolve-id [id local global]
+  (or (get local id)
+      (get global id)))
+
+(defn- throw-unresolved-id [id]
+  (if id
+    id
+    (throw (str "Could not resolve eid " id))))
+
+(defn- resolve-op [op refs local global]
+  [(op 0)
+   (throw-unresolved-id (resolve-id (op 1) local global))
+   (op 2)
+   (if (contains? refs (op 2))
+     (throw-unresolved-id (resolve-id (op 3) local global))
+     (op 3))])
+
 ; TODO:
 ; - add serverside timestamp
 ; - add fb index (if needed? it might be auto)
@@ -25,31 +44,34 @@
   (.add (.collection (.firestore firebase) (:path link)) 
         #js {:t (dt/write-transit-str tx-data)}))
 
+(defn- transact-to-datascript! [link ops seid->tempid]
+  (let [tempids (dissoc (:tempids (d/transact! (:conn link) ops)) :db/current-tx)]
+    (doseq [entry seid->tempid]
+      (let [seid (key entry)
+            eid (get tempids (val entry))]
+        (swap! (:seid->eid link) assoc seid eid)
+        (swap! (:eid->seid link) assoc eid seid)))))
+
 ; circle back on the firestore-transact! to look up seid refs
 (defn- load-transaction! [link tx-data]
-  (loop [input-ops tx-data
-         output-ops []
-         seid->tempid {}
-         max-tempid 0]
-    (if (empty? input-ops)
-      (let [tempids (dissoc (:tempids (d/transact! (:conn link) output-ops)) :db/current-tx)]
-        (doseq [entry seid->tempid]
-          (let [seid (key entry)
-                eid (get tempids (val entry))]
-            (swap! (:seid->eid link) assoc seid eid)
-            (swap! (:eid->seid link) assoc eid seid))))
-      (let [op (first input-ops)
-            seid (op 1)
-            existing-eid (or (get @(:seid->eid link) seid)
-                             (get seid->tempid seid))
-            new-max-tempid (if existing-eid max-tempid (inc max-tempid))       
-            eid (or existing-eid (- new-max-tempid))
-            ; must lookup refs here too
-            new-op (assoc op 1 eid)]
-        (recur (rest input-ops)
-               (conj output-ops new-op)
-               (if existing-eid seid->tempid (assoc seid->tempid seid eid))
-               new-max-tempid)))))
+  (let [refs (:db.type/ref (:rschema @(:conn link)))]
+    (loop [input-ops tx-data
+           output-ops []
+           seid->tempid {}
+           max-tempid 0]
+      (if (empty? input-ops)
+        (transact-to-datascript! link output-ops seid->tempid)
+        (let [op (first input-ops)
+              seid (op 1)
+              existing-eid (resolve-id seid seid->tempid @(:seid->eid link))
+              new-max-tempid (if existing-eid max-tempid (inc max-tempid))
+              new-seid->tempid (if existing-eid
+                                 seid->tempid
+                                 (assoc seid->tempid seid (- new-max-tempid)))]
+          (recur (rest input-ops)
+                 (conj output-ops (resolve-op op refs new-seid->tempid @(:seid->eid link)))
+                 new-seid->tempid
+                 new-max-tempid))))))
 
 ; Notes from transact! doc:
 ; https://cljdoc.org/d/d/d/0.18.7/api/datascript.core#transact!
@@ -77,26 +99,22 @@
 ; - caveat, no ref to non-existing entity
 ; - after I have tests, check if it's ok to just leave a tempid on new entities
 (defn save-transaction! [link tx]
-  (let [report (d/with @(:conn link) tx)]
+  (let [report (d/with @(:conn link) tx)
+        refs (:db.type/ref (:rschema @(:conn link)))]
     (loop [tx-data (:tx-data report)
            ops []
            eid->seid (into {} (map #(vector (val %) (new-seid link))
                                    (dissoc (:tempids report) :db/current-tx)))]
       (if (empty? tx-data)
         (save-to-firestore! link ops)
-        (let [datom (first tx-data)
-              eid (:e datom)
-              existing-seid (get eid->seid eid)
-              seid (or existing-seid (new-seid link))]
-          ; on datom->op have to check if :a is a ref
-          ; lookup seid for ref on 
-          ; error out if ref but no seid
-          ; a tx might also be altering an existing seid, so we need to look that up too
+        (let [op (datom->op (first tx-data))
+              eid (op 1)
+              new-eid->seid (if (resolve-id eid eid->seid @(:eid->seid link))
+                              eid->seid
+                              (assoc eid->seid eid (new-seid link)))]
           (recur (rest tx-data)
-                 (conj ops (datom->op (assoc datom :e seid)))
-                 (if existing-seid
-                   eid->seid
-                   (assoc eid->seid eid seid))))))))
+                 (conj ops (resolve-op op refs new-eid->seid @(:eid->seid link)))
+                 new-eid->seid))))))
 
 ; change this name to something less confusing
 (defn create-link
