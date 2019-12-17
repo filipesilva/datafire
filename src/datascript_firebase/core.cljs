@@ -32,23 +32,24 @@
          seid->tempid {}
          max-tempid 0]
     (if (empty? input-ops)
-      (d/transact! (:conn link) output-ops)
+      (let [tempids (dissoc (:tempids (d/transact! (:conn link) output-ops)) :db/current-tx)]
+        (doseq [entry seid->tempid]
+          (let [seid (key entry)
+                eid (get tempids (val entry))]
+            (swap! (:seid->eid link) assoc seid eid)
+            (swap! (:eid->seid link) assoc eid seid))))
       (let [op (first input-ops)
-            fb-eid (op 1)
-            seid (and (= seid-key (op 2)) (op 3))
-            new-max-tempid (if seid (dec max-tempid) max-tempid)
-            new-seid->temp-id (if seid
-                                (assoc seid->tempid seid new-max-tempid)
-                                seid->tempid)
-            ds-eid (or (get new-seid->temp-id fb-eid)
-                       (:db/id (d/entity @(:conn link) [seid-key fb-eid])))
-            new-op (assoc op 1 ds-eid)]
-        (if (nil? ds-eid)
-          (throw (str "Could not find eid for " seid))
-          (recur (rest input-ops)
-                 (conj output-ops new-op)
-                 new-seid->temp-id
-                 new-max-tempid))))))
+            seid (op 1)
+            existing-eid (or (get @(:seid->eid link) seid)
+                             (get seid->tempid seid))
+            new-max-tempid (if existing-eid max-tempid (inc max-tempid))       
+            eid (or existing-eid (- new-max-tempid))
+            ; must lookup refs here too
+            new-op (assoc op 1 eid)]
+        (recur (rest input-ops)
+               (conj output-ops new-op)
+               (if existing-eid seid->tempid (assoc seid->tempid seid eid))
+               new-max-tempid)))))
 
 ; Notes from transact! doc:
 ; https://cljdoc.org/d/d/d/0.18.7/api/datascript.core#transact!
@@ -76,32 +77,26 @@
 ; - caveat, no ref to non-existing entity
 ; - after I have tests, check if it's ok to just leave a tempid on new entities
 (defn save-transaction! [link tx]
-  (let [report (d/with @(:conn link) tx)
-        tempids (dissoc (:tempids report) :db/current-tx)]
-    (print tempids)
-    ; seed initial ops and eid->seid from tempids
+  (let [report (d/with @(:conn link) tx)]
     (loop [tx-data (:tx-data report)
            ops []
-           eid->seid {}]
+           eid->seid (into {} (map #(vector (val %) (new-seid link))
+                                   (dissoc (:tempids report) :db/current-tx)))]
       (if (empty? tx-data)
         (save-to-firestore! link ops)
         (let [datom (first tx-data)
               eid (:e datom)
-              new? (not (contains? eid->seid eid))
-              seid (get eid->seid (:e datom) (new-seid link))
-              new-ops (conj ops (datom->op (assoc datom :e seid)))]
+              existing-seid (get eid->seid eid)
+              seid (or existing-seid (new-seid link))]
           ; on datom->op have to check if :a is a ref
           ; lookup seid for ref on 
           ; error out if ref but no seid
+          ; a tx might also be altering an existing seid, so we need to look that up too
           (recur (rest tx-data)
-                 ; Prepend seid ops, append others. 
-                 ; This way the seid op will always be loaded first.
-                 (if new?
-                   (vec (concat [[:db/add seid seid-key seid]] new-ops))
-                   new-ops)
-                 (if new?
-                   (assoc eid->seid eid seid)
-                   eid->seid)))))))
+                 (conj ops (datom->op (assoc datom :e seid)))
+                 (if existing-seid
+                   eid->seid
+                   (assoc eid->seid eid seid))))))))
 
 ; change this name to something less confusing
 (defn create-link
@@ -126,7 +121,7 @@
       ;   - but move around anyway because the known-stx are local to the link and would
       ;     be duplicated
      :seid->eid (atom {})
-     :eid->eid (atom {})}
+     :eid->seid (atom {})}
     {:unsubscribe (atom nil)}))
 
 (defn unlisten! [link]
@@ -149,3 +144,5 @@
                                          (load-transaction! link (dt/read-transit-str (.-t data)))
                                          (swap! (:known-stx link) conj id)))))
                         error-cb))))
+
+

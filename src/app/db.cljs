@@ -15,6 +15,6 @@
 (defonce use-emulator (.settings (.firestore firebase) #js {:host "localhost:8080" :ssl false}))
 (defonce schema {:ada-ref {:db/valueType :db.type/ref
                            :db/isComponent true}})
-(defonce conn (d/create-conn))
+(defonce conn (d/create-conn schema))
 (defonce link (df/create-link conn "tx"))
 (defonce listened-link (df/listen! link))
