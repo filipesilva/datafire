@@ -32,10 +32,10 @@
      [:div
       "Click to clear the firebase emulator database and reload "
       [:input {:type "button" :value "Clear"
-               :on-click #(do (js/fetch
-                               "http://localhost:8080/emulator/v1/projects/datascript-firebase/databases/(default)/documents"
-                               #js {:method "DELETE"})
-                              (.reload js/window.location))}]]]))
+               :on-click #(.then (js/fetch
+                                  "http://localhost:8080/emulator/v1/projects/datascript-firebase/databases/(default)/documents"
+                                  #js {:method "DELETE"})
+                                 (fn [] (.reload js/window.location)))}]]]))
 
 ; Different approach:
 ; - use something that guarantees ordering, but not necessarily uniqueness, (database pushids,
