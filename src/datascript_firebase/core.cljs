@@ -3,11 +3,13 @@
             [datascript.transit :as dt]
             ["firebase/app" :as firebase]))
 
-(def ^{:private true} seid-key :datascript-firebase/seid)
+(def seid-key :datascript-firebase/seid)
+(def seid-schema {seid-key {:db/unique :db.unique/identity
+                            :db/index true}})
 
 (defn- new-seid [conn]
   ; Note: this doesn't actually create a doc.
-  (.-id (.doc (.collection (.firestore firebase) (:path @conn)))))
+  (.-id (.doc (.collection (.firestore firebase) (:path conn)))))
 
 (defn- datom->op [datom]
   [(if (pos? (:tx datom))
@@ -15,8 +17,11 @@
      :db/retract)
    (:e datom) (:a datom) (:v datom)])
 
+; TODO:
+; - add serverside timestamp
+; - add fb index (if needed? it might be auto)
 (defn- save-to-firestore! [conn tx-data]
-  (.add (.collection (.firestore firebase) (:path @conn)) 
+  (.add (.collection (.firestore firebase) (:path conn)) 
         #js {:t (dt/write-transit-str tx-data)}))
 
 ; circle back on the firestore-transact! to look up seid refs
@@ -26,7 +31,7 @@
          seid->tempid {}
          max-tempid 0]
     (if (empty? input-ops)
-      (d/transact! (:ds-conn @conn) output-ops)
+      (d/transact! (:datascript-conn conn) output-ops)
       (let [op (first input-ops)
             fb-eid (op 1)
             seid (and (= seid-key (op 2)) (op 3))
@@ -34,10 +39,8 @@
             new-seid->temp-id (if seid
                                 (assoc seid->tempid seid new-max-tempid)
                                 seid->tempid)
-            ; seid-key needs to be unique attr, reference or marked as `:db/index true`
-            ; https://cljdoc.org/d/d/d/0.18.7/api/datascript.core#datoms
             ds-eid (or (get new-seid->temp-id fb-eid)
-                       (first (d/datoms @(:ds-conn @conn) :avet seid-key fb-eid)))
+                       (first (d/datoms @(:datascript-conn conn) :avet seid-key fb-eid)))
             new-op (assoc op 1 ds-eid)]
         (if (nil? ds-eid)
           (throw (str "Could not find eid for " seid))
@@ -70,7 +73,7 @@
 ; - really need to revisit tx/tx-data/ops names
 ; - add error-cb?
 (defn save-transaction! [conn tx]
-  (loop [tx-data (:tx-data (d/with @(:ds-conn @conn) tx))
+  (loop [tx-data (:tx-data (d/with @(:datascript-conn conn) tx))
          ops []
          eid->seid {}]
     (if (empty? tx-data)
@@ -91,12 +94,13 @@
                  eid->seid))))))
 
 (defn create-conn
-  ([conn path] (create-conn conn path :firestore))
-  ([conn path type] (atom {:ds-conn conn
-                           :path path
-                           :type type
-                           :known-ids #{}}
-                          :meta {:unsubscribe (atom nil)})))
+  ([path] (create-conn path nil))
+  ([path schema]
+   (with-meta
+     {:datascript-conn (d/create-conn (merge schema {seid-key seid-schema}))
+      :path path
+      :known-ids (atom #{})}
+     {:unsubscribe (atom nil)})))
 
 (defn unlisten! [conn]
   (let [unsubscribe @(:unsubscribe (meta conn))]
@@ -108,13 +112,13 @@
   ([conn error-cb] 
    (unlisten! conn)
    (reset! (:unsubscribe (meta conn))
-           (.onSnapshot (.collection (.firestore firebase) (:path @conn))
+           (.onSnapshot (.collection (.firestore firebase) (:path conn))
                         (fn [snapshot]
                           (.forEach (.docChanges snapshot)
                                     #(let [data (.data (.-doc %))
                                            id (.-id (.-doc %))]
                                        (when (and (= (.-type %) "added")
-                                                  (not (contains? (:known-ids @conn) id)))
+                                                  (not (contains? @(:known-ids conn) id)))
                                          (load-transaction! conn (dt/read-transit-str (.-t data)))
-                                         (swap! conn update :known-ids conj id)))))
+                                         (swap! (:known-ids conn) conj id)))))
                         error-cb))))

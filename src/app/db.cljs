@@ -1,6 +1,5 @@
 (ns app.db
-  (:require [datascript.core :as d]
-            [datascript-firebase.core :as df]
+  (:require [datascript-firebase.core :as df]
             ["firebase/app" :as firebase]
             ["firebase/firestore"]))
 
@@ -17,6 +16,6 @@
   ; Use the emulator. This should probably be a goog.define instead.
   (.settings (.firestore firebase) #js {:host "localhost:8080"
                                         :ssl false}))
-(defonce datascript-connection (d/create-conn))
-(defonce firebase-connection (df/create-conn datascript-connection "tx"))
-(defonce listed-fb-conn (df/listen! firebase-connection))
+(defonce firebase-conn (df/create-conn "tx"))
+(defonce datascript-conn (:datascript-conn firebase-conn))
+(defonce listened-fb-conn (df/listen! firebase-conn))

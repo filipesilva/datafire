@@ -6,7 +6,7 @@
             [datascript-firebase.core :as df]
             ["firebase/app" :as firebase]
             ["firebase/firestore"]
-            [app.db :refer [datascript-connection firebase-connection]]))
+            [app.db :refer [datascript-conn firebase-conn]]))
 
 (defn parse-fb-snapshot [query-snapshot]
   (map #(assoc (js->clj (.data %) :keywordize-keys true) :id (.-id %))
@@ -19,16 +19,14 @@
     a))
 
 (defn ds-add-user [user]
-  (df/save-transaction! firebase-connection [user]))
+  (df/save-transaction! firebase-conn [user]))
 
 (defn add-ada []
   (let [ada {:db/id -1 :first "Ada" :last "Lovelace" :born "1815"}]
     [:div
      "Click to add an Ada Lovelace user "
      [:input {:type "button" :value "Click me!"
-              :on-click #(do
-                           #_(fb-add-user ada)
-                           (ds-add-user ada))}]]))
+              :on-click #(ds-add-user ada)}]]))
 
 ; Different approach:
 ; - use something that guarantees ordering, but not necessarily uniqueness, (database pushids,
@@ -46,17 +44,13 @@
 ; Refs show up in the schema as `:db.type/ref`. I think I'll need to have a server version of
 ; each ref in the schema
 
-(defcard-rg add-ada-card
-  add-ada)
+(defcard-rg add-ada-card add-ada)
 
-(defcard ds-conn
-  datascript-connection)
+(defcard ds-conn datascript-conn)
 
-(defcard firestore-tx
-    (fb-tx-atom) [] {:history false})
+(defcard firestore-tx (fb-tx-atom) [] {:history false})
 
-(defcard fb-conn
-    firebase-connection)
+(defcard fb-conn firebase-conn)
 
 
 ; clear db
