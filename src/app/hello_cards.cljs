@@ -3,11 +3,32 @@
   ; is importing it in such a way that it needs to be imported beforehand.
   (:require [reagent.core]
             [devcards.core :refer [defcard defcard-rg]]
-            [app.hello :refer [add-ada]]
-            [app.db :refer [fb-tx-atom datascript-connection firebase-connection]]))
+            [datascript-firebase.core :as df]
+            ["firebase/app" :as firebase]
+            ["firebase/firestore"]
+            [app.db :refer [datascript-connection firebase-connection]]))
 
-(defcard-rg add-ada-card
-  add-ada)
+(defn parse-fb-snapshot [query-snapshot]
+  (map #(assoc (js->clj (.data %) :keywordize-keys true) :id (.-id %))
+       (.-docs query-snapshot)))
+
+(defn fb-tx-atom []
+  (let [a (atom [])]
+    (.onSnapshot (.collection (.firestore firebase) "tx")
+                 #(reset! a (parse-fb-snapshot %)))
+    a))
+
+(defn ds-add-user [user]
+  (df/save-transaction! firebase-connection [user]))
+
+(defn add-ada []
+  (let [ada {:db/id -1 :first "Ada" :last "Lovelace" :born "1815"}]
+    [:div
+     "Click to add an Ada Lovelace user "
+     [:input {:type "button" :value "Click me!"
+              :on-click #(do
+                           #_(fb-add-user ada)
+                           (ds-add-user ada))}]]))
 
 ; Different approach:
 ; - use something that guarantees ordering, but not necessarily uniqueness, (database pushids,
@@ -24,6 +45,9 @@
 ; TODO: figure out how to handle refs between datoms, presumably there's a way
 ; Refs show up in the schema as `:db.type/ref`. I think I'll need to have a server version of
 ; each ref in the schema
+
+(defcard-rg add-ada-card
+  add-ada)
 
 (defcard ds-conn
   datascript-connection)
