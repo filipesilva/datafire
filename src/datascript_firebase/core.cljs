@@ -1,5 +1,6 @@
 (ns datascript-firebase.core
   (:require [cljs.core.async :refer [<! chan close! go go-loop put!]]
+            [async-interop.interop :refer [<p!]]
             [datascript.core :as d]
             [datascript.transit :as dt]
             ["firebase/app" :as firebase]))
@@ -49,15 +50,11 @@
           (= granularity :datom) (let [batch (.batch (.firestore firebase))
                                        tx (.doc coll)
                                        datoms-coll (.collection tx "d")]
-                                  ;  TODO: need to ensure order here, reading them out of order
-                                  ;  can fail. Can't use array because we want seid based security
-                                  ;  rules.
-                                   (doseq [op tx-data]
+                                   (doseq [[idx op] (map-indexed vector tx-data)]
                                      (.set batch (.doc datoms-coll)
-                                           #js {:t (str (op 0))
+                                           #js {:i idx
                                                 :e (op 1)
-                                                :a (str (op 2))
-                                                :v (op 3)}))
+                                                :d (dt/write-transit-str op)}))
                                   ;  Note: the tx doc always needs to have a field, otherwise
                                   ;  watching it won't show it was added.
                                    (.set batch tx #js {:ts (server-timestamp)})
@@ -72,7 +69,6 @@
         (swap! (:seid->eid link) assoc seid eid)
         (swap! (:eid->seid link) assoc eid seid)))))
 
-; circle back on the firestore-transact! to look up seid refs
 (defn- load-transaction! [link tx-data]
   (let [refs (:db.type/ref (:rschema @(:conn link)))]
     (loop [input-ops tx-data
@@ -92,6 +88,26 @@
                  (conj output-ops (resolve-op op refs new-seid->tempid @(:seid->eid link)))
                  new-seid->tempid
                  new-max-tempid))))))
+
+(defn load-stx-datoms [link id]
+  (go
+    (let [tx-coll (.collection (.firestore firebase) (:path link))
+          tx-doc (.doc tx-coll id)
+          datom-coll (.orderBy (.collection tx-doc "d") "i")
+          datoms (js->clj (.map (.-docs (<p! (.get datom-coll))) #(.-d (.data %))))
+          tx-data (map #(dt/read-transit-str %) datoms)]
+      tx-data)))
+
+(defn load-doc [link [id data]]
+  (go
+    (print id data)
+    (let [granularity (:granularity link)
+          tx-data (cond (= granularity :tx) (dt/read-transit-str (.-t data))
+                        (= granularity :datom) (<! (load-stx-datoms link id))
+                        :else (throw (str "Unsupported granularity: " granularity)))]
+      (print tx-data)
+      (load-transaction! link tx-data))
+    (swap! (:known-stx link) conj id)))
 
 ; Notes from transact! doc:
 ; https://cljdoc.org/d/d/d/0.18.7/api/datascript.core#transact!
@@ -119,6 +135,7 @@
 ; - caveat, no ref to non-existing entity
 ; - after I have tests, check if it's ok to just leave a tempid on new entities
 ; - test multiple tempids, including refs
+; - review notes on datascript-internals
 (defn save-transaction! [link tx]
   (let [report (d/with @(:conn link) tx)
         refs (:db.type/ref (:rschema @(:conn link)))]
@@ -164,7 +181,7 @@
     {:conn conn
      :path path
      :type :cloud-firestore
-     :granularity :tx
+     :granularity :datom
      :known-stx (atom #{})
      :seid->eid (atom {})
      :eid->seid (atom {})}
@@ -179,16 +196,7 @@
     (reset! (:chan (meta link)) nil)
     (reset! (:unsubscribe (meta link)) nil)))
 
-(defn load-doc [link [id data]]
-  (let [granularity (:granularity link)]
-    (go
-      (print id data)
-      (cond (= granularity :tx) (load-transaction! link (dt/read-transit-str (.-t data)))
-            (= granularity :datom) (print "TODO load datom doc")
-            :else (throw (str "Unsupported granularity: " granularity)))
-      (swap! (:known-stx link) conj id))))
-
-(defn listen! 
+(defn listen!
   ([link] (listen! link js/undefined))
   ([link error-cb]
    (unlisten! link)
