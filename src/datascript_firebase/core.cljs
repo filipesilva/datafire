@@ -5,10 +5,6 @@
             [datascript.transit :as dt]
             ["firebase/app" :as firebase]))
 
-(def seid-key :datascript-firebase/seid)
-(def seid-schema {seid-key {:db/unique :db.unique/identity
-                            :db/index true}})
-
 (defn- server-timestamp []
   (.serverTimestamp (.-FieldValue (.-firestore firebase))))
 
@@ -204,3 +200,11 @@
        (when-not (nil? doc)
          (<! (load-doc link doc))
          (recur (<! c)))))))
+
+; If the rules deny access to any of the specified document paths, the entire request fails.
+; https://firebase.google.com/docs/firestore/security/get-started
+; Need new approach to security rules. Maybe I could set lists where a user can read certain 
+; entities, but that will hit the 10 comparisons limit:
+; https://firebase.google.com/docs/firestore/query-data/queries#in_and_array-contains-any
+; I think this precludes entity-level security rules in general. Maybe there's no point in aiming
+; for entity level granularity overall.
