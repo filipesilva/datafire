@@ -89,6 +89,8 @@
                  new-seid->tempid
                  new-max-tempid))))))
 
+; Loading each tx separately is very slow and completely breaks the responsiveness.
+; To do datom granularity right, they need to all be in the same collection.
 (defn load-stx-datoms [link id]
   (go
     (let [tx-coll (.collection (.firestore firebase) (:path link))
@@ -100,12 +102,10 @@
 
 (defn load-doc [link [id data]]
   (go
-    (print id data)
     (let [granularity (:granularity link)
           tx-data (cond (= granularity :tx) (dt/read-transit-str (.-t data))
                         (= granularity :datom) (<! (load-stx-datoms link id))
                         :else (throw (str "Unsupported granularity: " granularity)))]
-      (print tx-data)
       (load-transaction! link tx-data))
     (swap! (:known-stx link) conj id)))
 
@@ -127,8 +127,6 @@
 ; - figure out other ds built-ins ever appear as the op in tx-datoms (see builtin-fn?)
 ; - figure out refs
 ; - maybe call it save-transaction!
-; - separate the collection add from this operation to make it reusable for
-;   both db types
 ; - add spec to validate data coming in and out
 ; - really need to revisit tx/tx-data/ops names
 ; - add error-cb?
@@ -180,8 +178,7 @@
   (with-meta
     {:conn conn
      :path path
-     :type :cloud-firestore
-     :granularity :datom
+     :granularity :tx
      :known-stx (atom #{})
      :seid->eid (atom {})
      :eid->seid (atom {})}
