@@ -20,8 +20,7 @@
     a))
 
 (defn ds-add [user]
-  (.then (df/save-transaction! link [user])
-         (print "added " user)))
+  (df/save-transaction! link [user]))
 
 (defn ds-pull []
   (print (d/pull @conn '[*] 2)))

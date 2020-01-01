@@ -1,5 +1,6 @@
 (ns datascript-firebase.core
-  (:require [datascript.core :as d]
+  (:require [cljs.core.async :refer [<! chan close! go go-loop put!]]
+            [datascript.core :as d]
             [datascript.transit :as dt]
             ["firebase/app" :as firebase]))
 
@@ -38,13 +39,30 @@
      (op 3))])
 
 ; TODO:
-; - add serverside timestamp
-; - add fb index (if needed? it might be auto)
 ; - add docs that this returns a promise with the doc (and thus seid)
 (defn- save-to-firestore! [link tx-data]
-  (.add (.collection (.firestore firebase) (:path link)) 
-        #js {:t (dt/write-transit-str tx-data)
-             :ts (server-timestamp)}))
+  (let [coll (.collection (.firestore firebase) (:path link))
+        granularity (:granularity link)]
+    (cond (= granularity :tx) (.add coll #js {:t (dt/write-transit-str tx-data)
+                                              :ts (server-timestamp)})
+          ; Firestore transactions can't be done offline, but batches can so we use that.
+          (= granularity :datom) (let [batch (.batch (.firestore firebase))
+                                       tx (.doc coll)
+                                       datoms-coll (.collection tx "d")]
+                                  ;  TODO: need to ensure order here, reading them out of order
+                                  ;  can fail. Can't use array because we want seid based security
+                                  ;  rules.
+                                   (doseq [op tx-data]
+                                     (.set batch (.doc datoms-coll)
+                                           #js {:t (str (op 0))
+                                                :e (op 1)
+                                                :a (str (op 2))
+                                                :v (op 3)}))
+                                  ;  Note: the tx doc always needs to have a field, otherwise
+                                  ;  watching it won't show it was added.
+                                   (.set batch tx #js {:ts (server-timestamp)})
+                                   (.commit batch))
+          :else (throw (str "Unsupported granularity: " granularity)))))
 
 (defn- transact-to-datascript! [link ops seid->tempid]
   (let [tempids (dissoc (:tempids (d/transact! (:conn link) ops)) :db/current-tx)]
@@ -119,17 +137,25 @@
                  (conj ops (resolve-op op refs new-eid->seid @(:eid->seid link)))
                  new-eid->seid))))))
 
-(defn- listen-to-firestore [link error-cb]
+(defn- listen-to-firestore [link error-cb c]
   (.onSnapshot (.orderBy (.collection (.firestore firebase) (:path link)) "ts")
                (fn [snapshot]
                  (.forEach (.docChanges snapshot)
                            #(let [data (.data (.-doc %))
                                   id (.-id (.-doc %))]
-                              (print (.-type %))
+                              ; Only listen to "added" events because our transactions are 
+                              ; immutable on the server.
+                              ; The server timestamp is technically an exception, since the client
+                              ; that adds the transaction will see a "modified" event when the
+                              ; timestamp is added, but other clients will only see the "added".
+                              ; This isn't a problem because the timestamp is used for ordering and
+                              ; we assume client tx happen as soon as they are committed locally.
                               (when (and (= (.-type %) "added")
                                          (not (contains? @(:known-stx link) id)))
-                                (load-transaction! link (dt/read-transit-str (.-t data)))
-                                (swap! (:known-stx link) conj id)))))
+                                ; Put doc into channel. 
+                                ; Only do sync computation here to ensure docs are put into channel
+                                ; in order.
+                                (put! c [id data])))))
                error-cb))
 
 (defn create-link
@@ -142,15 +168,34 @@
      :known-stx (atom #{})
      :seid->eid (atom {})
      :eid->seid (atom {})}
-    {:unsubscribe (atom nil)}))
+    {:unsubscribe (atom nil)
+     :chan (atom nil)}))
 
 (defn unlisten! [link]
-  (let [unsubscribe @(:unsubscribe (meta link))]
+  (let [unsubscribe @(:unsubscribe (meta link))
+        c @(:chan (meta link))]
     (when unsubscribe (unsubscribe))
+    (when c (close! c))
+    (reset! (:chan (meta link)) nil)
     (reset! (:unsubscribe (meta link)) nil)))
+
+(defn load-doc [link [id data]]
+  (let [granularity (:granularity link)]
+    (go
+      (print id data)
+      (cond (= granularity :tx) (load-transaction! link (dt/read-transit-str (.-t data)))
+            (= granularity :datom) (print "TODO load datom doc")
+            :else (throw (str "Unsupported granularity: " granularity)))
+      (swap! (:known-stx link) conj id))))
 
 (defn listen! 
   ([link] (listen! link js/undefined))
-  ([link error-cb] 
+  ([link error-cb]
    (unlisten! link)
-   (reset! (:unsubscribe (meta link)) (listen-to-firestore link error-cb))))
+   (let [c (chan)]
+     (reset! (:chan (meta link)) c)
+     (reset! (:unsubscribe (meta link)) (listen-to-firestore link error-cb c))
+     (go-loop [doc (<! c)]
+       (when-not (nil? doc)
+         (<! (load-doc link doc))
+         (recur (<! c)))))))
