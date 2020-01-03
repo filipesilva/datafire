@@ -5,12 +5,17 @@
             [datascript.transit :as dt]
             ["firebase/app" :as firebase]))
 
+(def default-firebase-app "[DEFAULT]")
+
+(defn- firestore [link]
+  (.firestore (.app firebase (:name link))))
+
 (defn- server-timestamp []
   (.serverTimestamp (.-FieldValue (.-firestore firebase))))
 
 (defn- new-seid [link]
   ; Note: this doesn't actually create a doc.
-  (.-id (.doc (.collection (.firestore firebase) (:path link)))))
+  (.-id (.doc (.collection (firestore link) (:path link)))))
 
 (defn- datom->op [datom]
   [(if (pos? (:tx datom))
@@ -38,12 +43,12 @@
 ; TODO:
 ; - add docs that this returns a promise with the doc (and thus seid)
 (defn- save-to-firestore! [link tx-data]
-  (let [coll (.collection (.firestore firebase) (:path link))
+  (let [coll (.collection (firestore link) (:path link))
         granularity (:granularity link)]
     (cond (= granularity :tx) (.add coll #js {:t (dt/write-transit-str tx-data)
                                               :ts (server-timestamp)})
           ; Firestore transactions can't be done offline, but batches can so we use that.
-          (= granularity :datom) (let [batch (.batch (.firestore firebase))
+          (= granularity :datom) (let [batch (.batch (firestore link))
                                        tx (.doc coll)
                                        datoms-coll (.collection tx "d")]
                                    (doseq [[idx op] (map-indexed vector tx-data)]
@@ -89,7 +94,7 @@
 ; To do datom granularity right, they need to all be in the same collection.
 (defn load-stx-datoms [link id]
   (go
-    (let [tx-coll (.collection (.firestore firebase) (:path link))
+    (let [tx-coll (.collection (firestore link) (:path link))
           tx-doc (.doc tx-coll id)
           datom-coll (.orderBy (.collection tx-doc "d") "i")
           datoms (js->clj (.map (.-docs (<p! (.get datom-coll))) #(.-d (.data %))))
@@ -130,6 +135,7 @@
 ; - after I have tests, check if it's ok to just leave a tempid on new entities
 ; - test multiple tempids, including refs
 ; - review notes on datascript-internals
+; - check if using resolve_tempid would help any
 (defn save-transaction! [link tx]
   (let [report (d/with @(:conn link) tx)
         refs (:db.type/ref (:rschema @(:conn link)))]
@@ -149,7 +155,7 @@
                  new-eid->seid))))))
 
 (defn- listen-to-firestore [link error-cb c]
-  (.onSnapshot (.orderBy (.collection (.firestore firebase) (:path link)) "ts")
+  (.onSnapshot (.orderBy (.collection (firestore link) (:path link)) "ts")
                (fn [snapshot]
                  (.forEach (.docChanges snapshot)
                            #(let [data (.data (.-doc %))
@@ -163,6 +169,7 @@
                               ; we assume client tx happen as soon as they are committed locally.
                               (when (and (= (.-type %) "added")
                                          (not (contains? @(:known-stx link) id)))
+                                (print id)
                                 ; Put doc into channel. 
                                 ; Only do sync computation here to ensure docs are put into channel
                                 ; in order.
@@ -170,16 +177,18 @@
                error-cb))
 
 (defn create-link
-  [conn path]
-  (with-meta
-    {:conn conn
-     :path path
-     :granularity :tx
-     :known-stx (atom #{})
-     :seid->eid (atom {})
-     :eid->seid (atom {})}
-    {:unsubscribe (atom nil)
-     :chan (atom nil)}))
+  ([conn path] (create-link conn path default-firebase-app))
+  ([conn path name]
+   (with-meta
+     {:conn conn
+      :path path
+      :name name
+      :granularity :tx
+      :known-stx (atom #{})
+      :seid->eid (atom {})
+      :eid->seid (atom {})}
+     {:unsubscribe (atom nil)
+      :chan (atom nil)})))
 
 (defn unlisten! [link]
   (let [unsubscribe @(:unsubscribe (meta link))

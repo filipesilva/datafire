@@ -1,11 +1,19 @@
-(ns app.cards.devcards-runner
-  (:require [cljsjs.react]
-            [cljsjs.react.dom]
+(ns app.cards
             ; devcards needs cljsjs.react and cljsjs.react.dom to be imported
             ; separately for shadow-cljs to add shims.
+  (:require [cljsjs.react]
+            [cljsjs.react.dom]
+            ; We shouldn't need to load reagent directly, but it looks like devcards
+            ; is importing it in such a way that it needs to be imported beforehand.
+            [reagent.core]
             [devcards.core :refer [start-devcard-ui!]]
             ; Import all namespaces with cards here to load them.
-            [app.hello-cards]))
+            [app.sandbox]
+            [app.tests]
+            [app.offline-tests]))
+
+; 10x the usual devcards timeout to give time for the sync tests.
+(set! devcards.core/test-timeout 8000)
 
 (defn ^:export main
   "Start the devcards UI."
