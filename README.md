@@ -15,12 +15,13 @@ Notes:
 
 - Keep only av on datom granularity transit data.
 
-- If the rules deny access to any of the specified document paths, the entire request fails. https://firebase.google.com/docs/firestore/security/get-started.
+- If the rules deny access to any of the specified document paths, the entire request fails. https://firebase.google.com/docs/firestore/security/get-started and https://youtu.be/eW5MdE3ZcAw?t=866.
 
 - On datom granularity, store read access info on the datom, update it on a cloud function that watches a special doc that lists access privileges. Can't just use security rule to filter because of https://stackoverflow.com/questions/56296046/firestore-access-documents-in-collection-user-has-permission-to. Test if this works before investing time in it.
 
 - That covers datom reads, what about writes? Would need to have a security rule that says "user can only write tx that have this entity". Could use https://firebase.google.com/docs/firestore/security/rules-conditions#access_other_documents to check if the id exists on the acess collection.
 
+- What happens to offline writes that fail security rules? Are they removed on a snapshot update?
 
 Notes for https://tonsky.me/blog/datascript-internals/:
 
@@ -45,3 +46,5 @@ TODOS:
 - after I have tests, check if it's ok to add tempid info on fb doc
 - consider adding docs that transact! returns a promise with the doc (and thus seid), but that it only resolves when it hits the fb server. Offline docs say this shouldn't be relied on overall and it's better to not wait on this promise.
 - support tx-meta on transact!
+- test permissions model
+- put df in an alpha namespace?
