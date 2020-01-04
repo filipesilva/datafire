@@ -7,13 +7,14 @@
     "server": "shadow-cljs stop && shadow-cljs start",
     "cards": "shadow-cljs watch cards",
     "build": "yarn clean && shadow-cljs release app",
-    "test:once": "shadow-cljs compile test && shadow-cljs compile run-tests && karma start --single-run",
     "test:watch": "shadow-cljs watch test",
+    "test:once": "shadow-cljs compile test && shadow-cljs compile run-tests && karma start --single-run",
+    "test:ci": "firebase emulators:exec \"yarn test:once\"",
     "report": "shadow-cljs run shadow.cljs.build-report app report.html",
     "lint": "clj-kondo --lint src",
     "format": "zprint-clj --hang -i \"./src/**/*.{clj,cljs,cljc,edn}\" -o ./ && zprint-clj -i \"./*.edn\" -o ./",
     "clean": "rimraf public/js public/test",
-    "emulators": "yarn firebase emulators:start"
+    "emulators": "firebase emulators:start"
   },
   "devDependencies": {
     "@testing-library/dom": "^6.10.1",

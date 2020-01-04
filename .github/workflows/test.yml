@@ -38,4 +38,4 @@ jobs:
     - name: Start background server
       run: yarn sc start
     - name: Test
-      run: yarn test:once
+      run: yarn test:ci
