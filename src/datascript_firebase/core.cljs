@@ -3,7 +3,8 @@
             [async-interop.interop :refer [<p!]]
             [datascript.core :as d]
             [datascript.transit :as dt]
-            ["firebase/app" :as firebase]))
+            ["firebase/app" :as firebase]
+            ["firebase/firestore"]))
 
 (def default-firebase-app "[DEFAULT]")
 
@@ -169,7 +170,6 @@
                               ; we assume client tx happen as soon as they are committed locally.
                               (when (and (= (.-type %) "added")
                                          (not (contains? @(:known-stx link) id)))
-                                (print id)
                                 ; Put doc into channel. 
                                 ; Only do sync computation here to ensure docs are put into channel
                                 ; in order.

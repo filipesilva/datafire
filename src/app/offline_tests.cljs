@@ -8,7 +8,7 @@
             [app.samples :refer [data schema]]
             [app.test-helpers :refer [test-link pull-lethal-weapon pulled-lethal-weapon-snapshot query-lethal-weapon]]))
 
-; This test always passes after a hard reload, but never passes on a hot reload.
+; This test usually passes after a hard reload, but never passes on a hot reload.
 ; It looks like the second-fs never gets back online. Navigating to other test pages
 ; also causes them to not be able to connect to firestore. A firestore bug maybe?
 (deftest syncs-offline-transactions
@@ -20,6 +20,8 @@
                  [another-conn] (test-link schema path second-name)
                  first-fs (.firestore (.app firebase first-name))
                  second-fs (.firestore (.app firebase second-name))]
+             ; Wait before disabling network.
+             (<! (timeout 500))
              (<p! (.disableNetwork first-fs))
              (<p! (.disableNetwork second-fs))
              (df/save-transaction! link data)

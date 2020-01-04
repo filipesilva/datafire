@@ -8,9 +8,14 @@
           :compiler-options {:devcards true}
           :output-dir "public/js"
           :target :browser}
-  :e2e {:ns-regexp "e2e.*"
-        :output-to "out/e2e.js"
-        :target :node-test}}
+  :test {:target :browser-test
+         :ns-regexp "app.cards"
+         :test-dir "public/test"
+         :devtools  {:http-port 8021
+                     :http-root "public/test"}}
+  :run-tests {:target :karma
+              :ns-regexp "app.cards"
+              :output-to "out/run-tests.js"}}
  :dependencies [[org.clojure/core.async "0.6.532"]
                 [async-interop "0.1.4"]
                 [reagent "0.8.1"]

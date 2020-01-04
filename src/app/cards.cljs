@@ -12,8 +12,8 @@
             [app.tests]
             [app.offline-tests]))
 
-; 10x the usual devcards timeout to give time for the sync tests.
-(set! devcards.core/test-timeout 8000)
+; 15x the usual devcards timeout to give time for the sync tests.
+(set! devcards.core/test-timeout 12000)
 
 (defn ^:export main
   "Start the devcards UI."

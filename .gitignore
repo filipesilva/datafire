@@ -1,5 +1,6 @@
 node_modules
 public/js
+public/test
 out
 .shadow-cljs
 .nrepl-port
