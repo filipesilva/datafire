@@ -6,11 +6,9 @@
                               :db/isComponent true}
              :movie/cast {:db/valueType :db.type/ref
                           :db/cardinality :db.cardinality/many
-                          :db/isComponent true}
-             ;  TODO need to be able to resolve forward ref within a transaction
-             ;  like ":movie/sequel -207" in "The Terminator"             
-             ; :movie/sequel {:db/valueType :db.type/ref}
-             })
+                          :db/isComponent true}         
+             :movie/sequel {:db/valueType :db.type/ref
+                            :db/isComponent true}})
 (def data
   [{:db/id -100
     :person/name "James Cameron"

@@ -28,17 +28,17 @@
   (or (get local id)
       (get global id)))
 
-(defn- throw-unresolved-id [id]
-  (if id
-    id
+(defn- throw-unresolved-id [id local global]
+  (if-let [resolved (resolve-id id local global)]
+    resolved
     (throw (str "Could not resolve eid " id))))
 
 (defn- resolve-op [op refs local global]
   [(op 0)
-   (throw-unresolved-id (resolve-id (op 1) local global))
+   (throw-unresolved-id (op 1) local global)
    (op 2)
    (if (contains? refs (op 2))
-     (throw-unresolved-id (resolve-id (op 3) local global))
+     (throw-unresolved-id (op 3) local global)
      (op 3))])
 
 ; TODO:
@@ -71,8 +71,27 @@
         (swap! (:seid->eid link) assoc seid eid)
         (swap! (:eid->seid link) assoc eid seid)))))
 
+(defn- update-tempids [op refs max-tempid seid->tempid seid->eid]
+  (loop [seids (if (contains? refs (op 2))
+                 [(op 1) (op 3)]
+                 [(op 1)])
+         seid->tempid seid->tempid
+         max-tempid max-tempid]
+    (if (empty? seids)
+      [seid->tempid max-tempid]
+      (let [seid (first seids)
+            existing-eid (resolve-id seid seid->tempid seid->eid)
+            new-max-tempid (if existing-eid max-tempid (inc max-tempid))
+            new-seid->tempid (if existing-eid
+                               seid->tempid
+                               (assoc seid->tempid seid (- new-max-tempid)))]
+        (recur (rest seids)
+               new-seid->tempid
+               new-max-tempid)))))
+
 (defn- load-transaction! [link tx-data]
-  (let [refs (:db.type/ref (:rschema @(:conn link)))]
+  (let [refs (:db.type/ref (:rschema @(:conn link)))
+        seid->eid @(:seid->eid link)]
     (loop [input-ops tx-data
            output-ops []
            seid->tempid {}
@@ -80,14 +99,10 @@
       (if (empty? input-ops)
         (transact-to-datascript! link output-ops seid->tempid)
         (let [op (first input-ops)
-              seid (op 1)
-              existing-eid (resolve-id seid seid->tempid @(:seid->eid link))
-              new-max-tempid (if existing-eid max-tempid (inc max-tempid))
-              new-seid->tempid (if existing-eid
-                                 seid->tempid
-                                 (assoc seid->tempid seid (- new-max-tempid)))]
+              [new-seid->tempid
+               new-max-tempid] (update-tempids op refs max-tempid seid->tempid seid->eid)]
           (recur (rest input-ops)
-                 (conj output-ops (resolve-op op refs new-seid->tempid @(:seid->eid link)))
+                 (conj output-ops (resolve-op op refs new-seid->tempid seid->eid))
                  new-seid->tempid
                  new-max-tempid))))))
 
@@ -136,7 +151,6 @@
 ; - after I have tests, check if it's ok to just leave a tempid on new entities
 ; - test multiple tempids, including refs
 ; - review notes on datascript-internals
-; - check if using resolve_tempid would help any
 (defn save-transaction! [link tx]
   (let [report (d/with @(:conn link) tx)
         refs (:db.type/ref (:rschema @(:conn link)))]
