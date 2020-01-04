@@ -6,7 +6,7 @@
             ["firebase/app" :as firebase]
             ["firebase/firestore"]))
 
-(def default-firebase-app "[DEFAULT]")
+(def ^:private default-firebase-app "[DEFAULT]")
 
 (defn- firestore [link]
   (.firestore (.app firebase (:name link))))
@@ -41,8 +41,6 @@
      (throw-unresolved-id (op 3) local global)
      (op 3))])
 
-; TODO:
-; - add docs that this returns a promise with the doc (and thus seid)
 (defn- save-to-firestore! [link tx-data]
   (let [coll (.collection (firestore link) (:path link))
         granularity (:granularity link)]
@@ -108,7 +106,7 @@
 
 ; Loading each tx separately is very slow and completely breaks the responsiveness.
 ; To do datom granularity right, they need to all be in the same collection.
-(defn load-stx-datoms [link id]
+(defn- load-stx-datoms [link id]
   (go
     (let [tx-coll (.collection (firestore link) (:path link))
           tx-doc (.doc tx-coll id)
@@ -117,7 +115,7 @@
           tx-data (map #(dt/read-transit-str %) datoms)]
       tx-data)))
 
-(defn load-doc [link [id data]]
+(defn- load-doc [link [id data]]
   (go
     (let [granularity (:granularity link)
           tx-data (cond (= granularity :tx) (dt/read-transit-str (.-t data))
@@ -126,31 +124,6 @@
       (load-transaction! link tx-data))
     (swap! (:known-stx link) conj id)))
 
-; Notes from transact! doc:
-; https://cljdoc.org/d/d/d/0.18.7/api/datascript.core#transact!
-; - tempid can be string 
-; - whats :db/add ?
-; - reverse attr names can also be refs
-; - what about tx-meta?
-; - :tempids in report also contains :db/current-tx, but doesn't contain the new id
-;   for entities that don't have a :db/id set
-; - does d/transact! accept datoms? yes
-; - maybe it's easier to check the datoms for new ids in db:add instead.
-; Notes from datascript.db/transact-tx-data
-; - :db/add can have tempids too, and tx-data can have :db/add
-; TODOs: 
-; - test/figure out retracts `[1 :name "Ivan" 536870918 false]`
-;   - negative tx means retract
-; - figure out other ds built-ins ever appear as the op in tx-datoms (see builtin-fn?)
-; - figure out refs
-; - maybe call it save-transaction!
-; - add spec to validate data coming in and out
-; - really need to revisit tx/tx-data/ops names
-; - add error-cb?
-; - caveat, no ref to non-existing entity
-; - after I have tests, check if it's ok to just leave a tempid on new entities
-; - test multiple tempids, including refs
-; - review notes on datascript-internals
 (defn save-transaction! [link tx]
   (let [report (d/with @(:conn link) tx)
         refs (:db.type/ref (:rschema @(:conn link)))]
@@ -223,11 +196,3 @@
        (when-not (nil? doc)
          (<! (load-doc link doc))
          (recur (<! c)))))))
-
-; If the rules deny access to any of the specified document paths, the entire request fails.
-; https://firebase.google.com/docs/firestore/security/get-started
-; Need new approach to security rules. Maybe I could set lists where a user can read certain 
-; entities, but that will hit the 10 comparisons limit:
-; https://firebase.google.com/docs/firestore/query-data/queries#in_and_array-contains-any
-; I think this precludes entity-level security rules in general. Maybe there's no point in aiming
-; for entity level granularity overall.
