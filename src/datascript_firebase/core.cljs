@@ -124,24 +124,6 @@
       (load-transaction! link tx-data))
     (swap! (:known-stx link) conj id)))
 
-(defn save-transaction! [link tx]
-  (let [report (d/with @(:conn link) tx)
-        refs (:db.type/ref (:rschema @(:conn link)))]
-    (loop [tx-data (:tx-data report)
-           ops []
-           eid->seid (into {} (map #(vector (val %) (new-seid link))
-                                   (dissoc (:tempids report) :db/current-tx)))]
-      (if (empty? tx-data)
-        (save-to-firestore! link ops)
-        (let [op (datom->op (first tx-data))
-              eid (op 1)
-              new-eid->seid (if (resolve-id eid eid->seid @(:eid->seid link))
-                              eid->seid
-                              (assoc eid->seid eid (new-seid link)))]
-          (recur (rest tx-data)
-                 (conj ops (resolve-op op refs new-eid->seid @(:eid->seid link)))
-                 new-eid->seid))))))
-
 (defn- listen-to-firestore [link error-cb c]
   (.onSnapshot (.orderBy (.collection (firestore link) (:path link)) "ts")
                (fn [snapshot]
@@ -162,6 +144,24 @@
                                 ; in order.
                                 (put! c [id data])))))
                error-cb))
+
+(defn transact! [link tx]
+  (let [report (d/with @(:conn link) tx)
+        refs (:db.type/ref (:rschema @(:conn link)))]
+    (loop [tx-data (:tx-data report)
+           ops []
+           eid->seid (into {} (map #(vector (val %) (new-seid link))
+                                   (dissoc (:tempids report) :db/current-tx)))]
+      (if (empty? tx-data)
+        (save-to-firestore! link ops)
+        (let [op (datom->op (first tx-data))
+              eid (op 1)
+              new-eid->seid (if (resolve-id eid eid->seid @(:eid->seid link))
+                              eid->seid
+                              (assoc eid->seid eid (new-seid link)))]
+          (recur (rest tx-data)
+                 (conj ops (resolve-op op refs new-eid->seid @(:eid->seid link)))
+                 new-eid->seid))))))
 
 (defn create-link
   ([conn path] (create-link conn path default-firebase-app))

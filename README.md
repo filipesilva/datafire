@@ -41,6 +41,7 @@ TODOS:
 - figure out other ds built-ins ever appear as the op in tx-datoms (see builtin-fn?)
 - add spec to validate data coming in and out
 - really need to revisit tx/tx-data/ops names
-- add error-cbs to save-transaction!
+- add error-cbs to transact!
 - after I have tests, check if it's ok to add tempid info on fb doc
-- consider adding docs that save-transaction! returns a promise with the doc (and thus seid), but that it only resolves when it hits the fb server. Offline docs say this shouldn't be relied on overall and it's better to not wait on this promise.
+- consider adding docs that transact! returns a promise with the doc (and thus seid), but that it only resolves when it hits the fb server. Offline docs say this shouldn't be relied on overall and it's better to not wait on this promise.
+- support tx-meta on transact!

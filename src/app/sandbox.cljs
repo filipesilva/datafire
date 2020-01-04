@@ -23,7 +23,7 @@
     a))
 
 (defn add-user [user]
-  (df/save-transaction! link [user]))
+  (df/transact! link [user]))
 
 (defn pull-2 []
   (print (d/pull @conn '[*] 2)))

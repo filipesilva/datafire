@@ -24,7 +24,7 @@
              (<! (timeout 500))
              (<p! (.disableNetwork first-fs))
              (<p! (.disableNetwork second-fs))
-             (df/save-transaction! link data)
+             (df/transact! link data)
              (<! (timeout 500))
              (is (= (pull-lethal-weapon conn) pulled-lethal-weapon-snapshot))
              (is (nil? (query-lethal-weapon another-conn)))
