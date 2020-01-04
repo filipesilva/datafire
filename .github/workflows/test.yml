@@ -1,0 +1,41 @@
+name: Test
+
+on:
+  pull_request: ~
+  push:
+    branches:
+    # These are the branches that we want CI to run on direct pushes.
+    # All other changes should go through PRs.
+    - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Cache node_modules
+      uses: actions/cache@v1
+      with:
+        path: node_modules
+        key: node_modules-${{ hashFiles('yarn.lock') }}
+        restore-keys: |
+          node_modules-
+    - name: Cache maven
+      uses: actions/cache@v1
+      with:
+        path: ~/.m2
+        key: m2-${{ hashFiles('shadow-cljs.edn') }}
+        restore-keys: |
+          m2-
+    - name: Use Node.js 12.x
+      uses: actions/setup-node@v1
+      with:
+        node-version: '12.x'
+    - name: Install
+      run: yarn
+    # - name: Lint
+    #   run: yarn lint
+    - name: Start background server
+      run: yarn sc start
+    - name: Test
+      run: yarn test:once
