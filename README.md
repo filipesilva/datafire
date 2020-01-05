@@ -33,8 +33,6 @@ Notes:
 
 - Overwrites and retractions might be hard. This would be an optimization over loading the pull and verifying membership though. Maybe start with actually doing the pull and improve on that.
 
-- Are batch writes delivered in the same snapshot update? If so that might be enough to ensure tx stay together.
-
 Notes for https://tonsky.me/blog/datascript-internals/:
 
 - Try using the datom eavt array format with added bool flag, get around the need for t somehow. Make a size comparison for large transit. Consider if needed in the datom granularity.
@@ -60,6 +58,4 @@ TODOS:
 - support tx-meta on transact!
 - test permissions model
 - put df in an alpha namespace?
-- Store a unique id together with timestamp for tx for datom granularity, just in case there's a collision.
-- move tx/datoms into a subcollection, add metadata like schema and permissions on a toplevel doc on that path
 - save link info on metadata, validate it's the same on... listen I guess? no, on security rules.

@@ -21,7 +21,7 @@
                                            _ (.enablePersistence (.firestore new-app))]
                                        new-app)))
                             conn (d/create-conn schema)
-                            link (df/create-link conn path name)]
+                            link (df/create-link conn path {:name name})]
                         (df/listen! link)
                         [conn link path name])))
 
@@ -29,8 +29,10 @@
   (d/q '[:find ?e .
          :where [?e :movie/title "Lethal Weapon"]]
        @conn))
+
 (defn pull-lethal-weapon [conn]
   (d/pull @conn '[*] (query-lethal-weapon conn)))
+
 (def pulled-lethal-weapon-snapshot
   {:db/id 57
    :movie/cast

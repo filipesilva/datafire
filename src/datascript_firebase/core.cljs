@@ -1,12 +1,10 @@
 (ns datascript-firebase.core
-  (:require [cljs.core.async :refer [<! chan close! go go-loop put!]]
-            [async-interop.interop :refer [<p!]]
-            [datascript.core :as d]
+  (:require [datascript.core :as d]
             [datascript.transit :as dt]
             ["firebase/app" :as firebase]
             ["firebase/firestore"]))
 
-(def ^:private default-firebase-app "[DEFAULT]")
+(def default-firebase-app "[DEFAULT]")
 
 (defn- firestore [link]
   (.firestore (.app firebase (:name link))))
@@ -25,7 +23,7 @@
 
 (defn- new-seid [link]
   ; Note: this doesn't actually create a doc.
-  (.-id (.doc (.collection (firestore link) (:path link)))))
+  (.-id (.doc (logs-coll link))))
 
 (defn- datom->op [datom]
   [(if (pos? (:tx datom))
@@ -57,16 +55,14 @@
                                               :ts (server-timestamp)})
           ; Firestore transactions can't be done offline, but batches can so we use that.
           (= granularity :datom) (let [batch (.batch (firestore link))
-                                       tx (.doc coll)
-                                       datoms-coll (.collection tx "d")]
+                                       tx-id (.-id (.doc coll))]
                                    (doseq [[idx op] (map-indexed vector tx-data)]
-                                     (.set batch (.doc datoms-coll)
-                                           #js {:i idx
-                                                :e (op 1)
+                                     (.set batch (.doc coll)
+                                           #js {:tx tx-id
+                                                :ts (server-timestamp)
+                                                :i idx
+                                                ; :e (op 1)
                                                 :d (dt/write-transit-str op)}))
-                                  ;  Note: the tx doc always needs to have a field, otherwise
-                                  ;  watching it won't show it was added.
-                                   (.set batch tx #js {:ts (server-timestamp)})
                                    (.commit batch))
           :else (throw (str "Unsupported granularity: " granularity)))))
 
@@ -113,45 +109,54 @@
                  new-seid->tempid
                  new-max-tempid))))))
 
-; Loading each tx separately is very slow and completely breaks the responsiveness.
-; To do datom granularity right, they need to all be in the same collection.
-(defn- load-stx-datoms [link id]
-  (go
-    (let [tx-coll (.collection (firestore link) (:path link))
-          tx-doc (.doc tx-coll id)
-          datom-coll (.orderBy (.collection tx-doc "d") "i")
-          datoms (js->clj (.map (.-docs (<p! (.get datom-coll))) #(.-d (.data %))))
-          tx-data (map #(dt/read-transit-str %) datoms)]
-      tx-data)))
+(defn- snapshot->txs [link snapshot]
+  (let [granularity (:granularity link)
+        ; Only listen to "added" events because our transactions are 
+        ; immutable on the server.
+        ; The server timestamp is technically an exception, since the client
+        ; that adds the transaction will see a "modified" event when the
+        ; timestamp is added, but other clients will only see the "added".
+        ; This isn't a problem because the timestamp is used for ordering and
+        ; we assume client tx happen as soon as they are committed locally.        
+        doc-changes (.filter (.docChanges snapshot) #(= (.-type %) "added"))
+        length (.-length doc-changes)]
+          ; On tx granularity, each doc is a transaction.
+    (cond (= granularity :tx) (loop [idx 0
+                                     txs []]
+                                (if (= idx length)
+                                  txs
+                                  (recur (inc idx)
+                                         (conj txs
+                                               (dt/read-transit-str
+                                                (.-t (.data (.-doc (aget doc-changes idx)))))))))
+          ; On datom granularity, each doc is a datom that belongs to a given transaction.
+          (= granularity :datom) (loop [idx 0
+                                        tx-ids []
+                                        txs-map {}]
+                                   (if (= idx length)
+                                     (map #(vals (get txs-map %)) tx-ids)
+                                     (let [data (.data (.-doc (aget doc-changes idx)))
+                                           datom (dt/read-transit-str (.-d data))
+                                           tx-id (.-tx data)
+                                           tx-idx (.-i data)]
+                                       (if (contains? txs-map tx-id)
+                                         (recur (inc idx)
+                                                tx-ids
+                                                (update txs-map tx-id conj [tx-idx datom]))
+                                         (recur (inc idx)
+                                                (conj tx-ids tx-id)
+                                                (conj txs-map 
+                                                      [tx-id (sorted-map tx-idx datom)]))))))
+          :else (throw (str "Unsupported granularity: " granularity)))))
 
-(defn- load-doc [link [id data]]
-  (go
-    (let [granularity (:granularity link)
-          tx-data (cond (= granularity :tx) (dt/read-transit-str (.-t data))
-                        (= granularity :datom) (<! (load-stx-datoms link id))
-                        :else (throw (str "Unsupported granularity: " granularity)))]
-      (load-transaction! link tx-data))
-    (swap! (:known-stx link) conj id)))
-
-(defn- listen-to-firestore [link error-cb c]
+(defn- listen-to-firestore [link error-cb]
+  ; Any given snapshot contains full transactions regardless of granularity.
+  ; With :tx granularity, that's a single doc.
+  ; With :datom granularity, there's a doc for each datom in the tx, but they are in the same
+  ; snapshot because the writes are batched.
   (.onSnapshot (.orderBy (logs-coll link) "ts")
-               (fn [snapshot]
-                 (.forEach (.docChanges snapshot)
-                           #(let [data (.data (.-doc %))
-                                  id (.-id (.-doc %))]
-                              ; Only listen to "added" events because our transactions are 
-                              ; immutable on the server.
-                              ; The server timestamp is technically an exception, since the client
-                              ; that adds the transaction will see a "modified" event when the
-                              ; timestamp is added, but other clients will only see the "added".
-                              ; This isn't a problem because the timestamp is used for ordering and
-                              ; we assume client tx happen as soon as they are committed locally.
-                              (when (and (= (.-type %) "added")
-                                         (not (contains? @(:known-stx link) id)))
-                                ; Put doc into channel. 
-                                ; Only do sync computation here to ensure docs are put into channel
-                                ; in order.
-                                (put! c [id data])))))
+               #(doseq [tx-data (snapshot->txs link %)]
+                  (load-transaction! link tx-data))
                error-cb))
 
 (defn transact! [link tx]
@@ -173,36 +178,26 @@
                  new-eid->seid))))))
 
 (defn create-link
-  ([conn path] (create-link conn path default-firebase-app))
-  ([conn path name]
+  ([conn path] (create-link conn path {}))
+  ([conn path {:keys [name granularity] 
+               :or {name default-firebase-app
+                    granularity :datom}}]
    (with-meta
      {:conn conn
       :path path
       :name name
-      :granularity :tx
-      ; :granularity :datom
-      :known-stx (atom #{})
+      :granularity granularity
       :seid->eid (atom {})
       :eid->seid (atom {})}
-     {:unsubscribe (atom nil)
-      :chan (atom nil)})))
+     {:unsubscribe (atom nil)})))
 
 (defn unlisten! [link]
-  (let [unsubscribe @(:unsubscribe (meta link))
-        c @(:chan (meta link))]
+  (let [unsubscribe @(:unsubscribe (meta link))]
     (when unsubscribe (unsubscribe))
-    (when c (close! c))
-    (reset! (:chan (meta link)) nil)
     (reset! (:unsubscribe (meta link)) nil)))
 
 (defn listen!
   ([link] (listen! link js/undefined))
   ([link error-cb]
    (unlisten! link)
-   (let [c (chan)]
-     (reset! (:chan (meta link)) c)
-     (reset! (:unsubscribe (meta link)) (listen-to-firestore link error-cb c))
-     (go-loop [doc (<! c)]
-       (when-not (nil? doc)
-         (<! (load-doc link doc))
-         (recur (<! c)))))))
+   (reset! (:unsubscribe (meta link)) (listen-to-firestore link error-cb))))
