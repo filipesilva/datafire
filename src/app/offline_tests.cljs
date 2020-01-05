@@ -16,8 +16,12 @@
          (go
            (let [first-name (str "offline-" (rand))
                  second-name (str "offline-" (rand))
-                 [conn link path] (test-link schema (str "p-" (rand)) first-name)
-                 [another-conn] (test-link schema path second-name)
+                 [conn link path] (test-link {:schema schema 
+                                              :path (str "p-" (rand)) 
+                                              :name first-name})
+                 [another-conn] (test-link {:schema schema
+                                            :path path
+                                            :name second-name})
                  first-fs (.firestore (.app firebase first-name))
                  second-fs (.firestore (.app firebase second-name))]
              ; Wait before disabling network.

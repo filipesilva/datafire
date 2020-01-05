@@ -13,17 +13,21 @@
 
 (defn test-link
   ([] (test-link {}))
-  ([schema] (test-link schema (str "rand-path-" (rand)) default-test-app))
-  ([schema path name] (let [_ (try (.app firebase name)
-                                   (catch js/Error _
-                                     (let [new-app (.initializeApp firebase firebase-config name)
-                                           _ (.settings (.firestore new-app) emulator-settings)
-                                           _ (.enablePersistence (.firestore new-app))]
-                                       new-app)))
-                            conn (d/create-conn schema)
-                            link (df/create-link conn path {:name name})]
-                        (df/listen! link)
-                        [conn link path name])))
+  ([{:keys [schema path name granularity]
+     :or {schema {}
+          path (str "rand-path-" (rand))
+          name default-test-app
+          granularity :tx}}]
+  (let [_ (try (.app firebase name)
+               (catch js/Error _
+                 (let [new-app (.initializeApp firebase firebase-config name)
+                       _ (.settings (.firestore new-app) emulator-settings)
+                       _ (.enablePersistence (.firestore new-app))]
+                   new-app)))
+        conn (d/create-conn schema)
+        link (df/create-link conn path {:name name :granularity granularity})]
+    (df/listen! link)
+    [conn link path name])))
 
 (defn query-lethal-weapon [conn]
   (d/q '[:find ?e .
