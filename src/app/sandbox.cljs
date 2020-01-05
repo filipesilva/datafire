@@ -16,9 +16,9 @@
   (map #(assoc (js->clj (.data %) :keywordize-keys true) :id (.-id %))
        (.-docs query-snapshot)))
 
-(defn fb-tx-atom []
+(defn firestore-logs-atom []
   (let [a (atom [])]
-    (.onSnapshot (.collection fs path)
+    (.onSnapshot (df/logs-coll link)
                  #(reset! a (parse-fb-snapshot %)))
     a))
 
@@ -64,4 +64,4 @@
 
 (defcard ds-conn conn)
 
-(defcard firestore-tx (fb-tx-atom) [] {:history false})
+(defcard firestore-logs (firestore-logs-atom) [] {:history false})

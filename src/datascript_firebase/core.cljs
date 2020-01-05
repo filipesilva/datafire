@@ -14,6 +14,15 @@
 (defn- server-timestamp []
   (.serverTimestamp (.-FieldValue (.-firestore firebase))))
 
+(defn db-coll [link]
+  (.collection (firestore link) (:path link)))
+
+(defn logs-coll [link]
+  (.collection (.doc (db-coll link) "log") "logs"))
+
+(defn meta-doc [link]
+  (.doc (db-coll link) "metadata"))
+
 (defn- new-seid [link]
   ; Note: this doesn't actually create a doc.
   (.-id (.doc (.collection (firestore link) (:path link)))))
@@ -42,7 +51,7 @@
      (op 3))])
 
 (defn- save-to-firestore! [link tx-data]
-  (let [coll (.collection (firestore link) (:path link))
+  (let [coll (logs-coll link)
         granularity (:granularity link)]
     (cond (= granularity :tx) (.add coll #js {:t (dt/write-transit-str tx-data)
                                               :ts (server-timestamp)})
@@ -125,7 +134,7 @@
     (swap! (:known-stx link) conj id)))
 
 (defn- listen-to-firestore [link error-cb c]
-  (.onSnapshot (.orderBy (.collection (firestore link) (:path link)) "ts")
+  (.onSnapshot (.orderBy (logs-coll link) "ts")
                (fn [snapshot]
                  (.forEach (.docChanges snapshot)
                            #(let [data (.data (.-doc %))
@@ -171,6 +180,7 @@
       :path path
       :name name
       :granularity :tx
+      ; :granularity :datom
       :known-stx (atom #{})
       :seid->eid (atom {})
       :eid->seid (atom {})}

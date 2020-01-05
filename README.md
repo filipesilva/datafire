@@ -3,10 +3,10 @@
 WIP
 
 Other possible names, that make more sense if this lib ends up having functionality that doesn't exist in datascript like security rules and snapshot loading:
+- datafire
 - firelog
 - firescript
 - firedata
-- datafire
 - datastore
 
 Notes:
@@ -62,3 +62,4 @@ TODOS:
 - put df in an alpha namespace?
 - Store a unique id together with timestamp for tx for datom granularity, just in case there's a collision.
 - move tx/datoms into a subcollection, add metadata like schema and permissions on a toplevel doc on that path
+- save link info on metadata, validate it's the same on... listen I guess? no, on security rules.
