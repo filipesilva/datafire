@@ -15,13 +15,25 @@ Notes:
 
 - Keep only av on datom granularity transit data.
 
-- If the rules deny access to any of the specified document paths, the entire request fails. https://firebase.google.com/docs/firestore/security/get-started and https://youtu.be/eW5MdE3ZcAw?t=866.
+- If the rules deny access to any of the specified document paths, the entire request fails. https://firebase.google.com/docs/firestore/security/get-started and https://youtu.be/eW5MdE3ZcAw?t=866 and https://firebase.google.com/docs/firestore/security/rules-query and https://firebase.google.com/docs/firestore/solutions/role-based-access.
 
-- On datom granularity, store read access info on the datom, update it on a cloud function that watches a special doc that lists access privileges. Can't just use security rule to filter because of https://stackoverflow.com/questions/56296046/firestore-access-documents-in-collection-user-has-permission-to. Test if this works before investing time in it.
+- On datom granularity, store read access info on the datom, update it on a cloud function that watches a special doc that lists access privileges. Can't just use security rule to filter because of https://stackoverflow.com/questions/56296046/firestore-access-documents-in-collection-user-has-permission-to. Test if this works before investing time in it: permissions model, semantics for adding permission, cloud function for adding permission to existing tx.
+
+- Consider making db views instead of user permissions. A view is a collection of entities. Users can have access to views. Datoms list which views they belong to. This also neatly gets around making user uids public. Views don't need to be bound to users either, they can also be used to watch a subsection of the full db.
+
+- Can use firestore events for cloud functions to update docs https://firebase.google.com/docs/functions/firestore-events. If we're updating docs, we'll need to also begin watching update events, not just "added" ones.
+
+- With entity level permissions, it's possible for a client to not see full transactions. Need to account for that on the storage schema.
 
 - That covers datom reads, what about writes? Would need to have a security rule that says "user can only write tx that have this entity". Could use https://firebase.google.com/docs/firestore/security/rules-conditions#access_other_documents to check if the id exists on the acess collection.
 
 - What happens to offline writes that fail security rules? Are they removed on a snapshot update?
+
+- Views are probably either pulls or queries. Pulls might be statically analyzable for relevant seids, given the schema. Then the cloud function only needs to watch for datoms with those seids to update view membership.
+
+- Overwrites and retractions might be hard. This would be an optimization over loading the pull and verifying membership though. Maybe start with actually doing the pull and improve on that.
+
+- Are batch writes delivered in the same snapshot update? If so that might be enough to ensure tx stay together.
 
 Notes for https://tonsky.me/blog/datascript-internals/:
 
@@ -48,3 +60,5 @@ TODOS:
 - support tx-meta on transact!
 - test permissions model
 - put df in an alpha namespace?
+- Store a unique id together with timestamp for tx for datom granularity, just in case there's a collision.
+- move tx/datoms into a subcollection, add metadata like schema and permissions on a toplevel doc on that path
