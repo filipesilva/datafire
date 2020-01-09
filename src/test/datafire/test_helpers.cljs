@@ -1,11 +1,11 @@
-(ns app.test-helpers
+(ns datafire.test-helpers
   (:require [datascript.core :as d]
             [datafire.core :as df]
             ["firebase/app" :as firebase]
             ["firebase/firestore"]))
 
 (def firebase-config #js {:apiKey "AIzaSyAYJX2_LdpTbdgcaGYvSbfz9hJplqTPi7Y"
-                          :authDomain "datafire.firebaseapp.com"
+                          :authDomain "datafire.firebasedatafire.com"
                           :projectId "datafire"})
 (def emulator-settings #js {:host "localhost:8080" :ssl false})
 

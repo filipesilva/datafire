@@ -9,6 +9,12 @@ You can use [Firestore Security Rules](https://firebase.google.com/docs/firestor
 [![Clojars Project](https://img.shields.io/clojars/v/datafire.svg)](https://clojars.org/datafire)
 
 ```Clojure
+:dependencies [[datascript "0.18.7"]
+               [datascript-transit "0.3.0"]
+               [datafire "0.1.1"]]
+```
+
+```Clojure
 (ns app.quickstart
   (:require ["firebase/app" :as firebase]
             [datascript.core :as d]
@@ -38,7 +44,7 @@ You can use [Firestore Security Rules](https://firebase.google.com/docs/firestor
 
 ; Query data using the Datascript connection.
 (d/q '[:find  ?m
-       :where [?e :name ?m]]
+       :where [?e :msg ?m]]
      @conn)
 ; #{[Persisted on 2020-01-09T15:54:02.065Z] 
 ;   [Persisted on 2020-01-09T15:54:20.310Z] 

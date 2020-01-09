@@ -1,4 +1,4 @@
-(ns app.cards
+(ns datafire.cards
             ; devcards needs cljsjs.react and cljsjs.react.dom to be imported
             ; separately for shadow-cljs to add shims.
   (:require [cljsjs.react]
@@ -8,9 +8,9 @@
             [reagent.core]
             [devcards.core :refer [start-devcard-ui!]]
             ; Import all namespaces with cards here to load them.
-            [app.sandbox]
-            [app.tests]
-            [app.offline-tests]))
+            [datafire.sandbox]
+            [datafire.tests]
+            [datafire.offline-tests]))
 
 ; 15x the usual devcards timeout to give time for the sync tests.
 (set! devcards.core/test-timeout 12000)

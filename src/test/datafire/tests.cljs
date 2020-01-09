@@ -1,11 +1,11 @@
-(ns app.tests
+(ns datafire.tests
   (:require [cljs.test :refer [is async]]
             [cljs.core.async :refer [go]]
             [async-interop.interop :refer [<p!]]
             [devcards.core :refer [deftest]]
             [datafire.core :as df]
-            [app.samples :refer [data schema]]
-            [app.test-helpers :refer [test-link pull-lethal-weapon pulled-lethal-weapon-snapshot]]))
+            [datafire.samples :refer [data schema]]
+            [datafire.test-helpers :refer [test-link pull-lethal-weapon pulled-lethal-weapon-snapshot]]))
 
 (defn saves-transactions [done granularity]
   (go (let [[conn link] (test-link {:schema schema :granularity granularity})]

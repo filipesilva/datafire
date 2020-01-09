@@ -1,4 +1,4 @@
-(ns app.samples)
+(ns datafire.samples)
 
 ; Adapted from https://github.com/jonase/learndatalogtoday/blob/master/resources/db/data.edn
 (def schema {:movie/director {:db/valueType :db.type/ref

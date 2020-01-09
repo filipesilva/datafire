@@ -1,20 +1,16 @@
 {:builds
- {:app {:asset-path "/js"
-        :modules {:main {:init-fn app.core/main}}
-        :output-dir "public/js"
-        :target :browser}
-  :cards {:asset-path "/js"
-          :modules {:main {:init-fn app.cards/main}}
+ {:cards {:asset-path "/js"
+          :modules {:main {:init-fn datafire.cards/main}}
           :compiler-options {:devcards true}
           :output-dir "public/js"
           :target :browser}
   :test {:target :browser-test
-         :ns-regexp "app.cards"
+         :ns-regexp "datafire.cards"
          :test-dir "public/test"
          :devtools  {:http-port 8021
                      :http-root "public/test"}}
   :run-tests {:target :karma
-              :ns-regexp "app.cards"
+              :ns-regexp "datafire.cards"
               :output-to "out/run-tests.js"}}
  :dependencies [[org.clojure/core.async "0.6.532"]
                 [async-interop "0.1.4"]
@@ -24,4 +20,4 @@
                 [datascript-transit "0.3.0"]]
  :dev-http {3000 "public"}
  :nrepl {:port 3333}
- :source-paths ["src"]}
+ :source-paths ["src/main" "src/test"]}

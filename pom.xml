@@ -3,10 +3,10 @@
   <groupId>datafire</groupId>
   <artifactId>datafire</artifactId>
   <packaging>jar</packaging>
-  <version>0.1.0</version>
+  <version>0.1.1</version>
   <name>datafire</name>
   <description>Persist Datascript databases in Firebase's Firestore.</description>
-  <url>https://github.com/filipesilva/async-interop</url>
+  <url>https://github.com/filipesilva/datafire</url>
   <licenses>
     <license>
       <name>MIT</name>
@@ -17,10 +17,10 @@
     <url>https://github.com/filipesilva/datascript-firebase</url>
     <connection>scm:git:git://github.com/filipesilva/datascript-firebase.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/filipesilva/datascript-firebase.git</developerConnection>
-    <tag>a2ae1e957478057988551749e49ecbcd979911e4</tag>
+    <tag>db2e3fbc7f71a118171cf35939e27bec61a213c0</tag>
   </scm>
   <build>
-    <sourceDirectory>src\datafire</sourceDirectory>
+    <sourceDirectory>src\main</sourceDirectory>
     <testSourceDirectory>test</testSourceDirectory>
     <resources>
       <resource>

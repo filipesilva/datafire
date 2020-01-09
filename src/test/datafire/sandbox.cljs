@@ -1,10 +1,10 @@
-(ns app.sandbox
+(ns datafire.sandbox
   (:require [reagent.core]
             [devcards.core :refer [defcard defcard-rg]]
             [datascript.core :as d]
             [datafire.core :as df]
             ["firebase/app" :as firebase]
-            [app.test-helpers :refer [test-link]]))
+            [datafire.test-helpers :refer [test-link]]))
 
 (defonce sandbox-test-link (test-link))
 (def conn (sandbox-test-link 0))

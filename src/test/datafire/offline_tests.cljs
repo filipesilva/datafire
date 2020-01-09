@@ -1,12 +1,12 @@
-(ns app.offline-tests
+(ns datafire.offline-tests
   (:require [cljs.test :refer [is async]]
             [cljs.core.async :refer [go timeout <!]]
             [async-interop.interop :refer [<p!]]
             [devcards.core :refer [deftest]]
             [datafire.core :as df]
             ["firebase/app" :as firebase]
-            [app.samples :refer [data schema]]
-            [app.test-helpers :refer [test-link pull-lethal-weapon pulled-lethal-weapon-snapshot query-lethal-weapon]]))
+            [datafire.samples :refer [data schema]]
+            [datafire.test-helpers :refer [test-link pull-lethal-weapon pulled-lethal-weapon-snapshot query-lethal-weapon]]))
 
 ; This test usually passes after a hard reload, but never passes on a hot reload.
 ; It looks like the second-fs never gets back online. Navigating to other test pages
