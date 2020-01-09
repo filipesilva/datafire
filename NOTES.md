@@ -26,7 +26,9 @@
 
 - Firestore in offline mode adds a lot of extra load per document fetched, which makes datom granularity much slower than tx granularity.
 
-Notes for https://tonsky.me/blog/datascript-internals/:
+- With datom granularity it's also possible to use `conn-from-datoms` instead of loading multiple tx, but that'd need a mapping of timestamp->tx-id. Would be faster though.
+
+### Notes for https://tonsky.me/blog/datascript-internals/:
 
 - Try using the datom eavt array format with added bool flag, get around the need for t somehow. Make a size comparison for large transit. Consider if needed in the datom granularity.
 
