@@ -18,7 +18,7 @@
 
 (defn firestore-logs-atom []
   (let [a (atom [])]
-    (.onSnapshot (df/logs-coll link)
+    (.onSnapshot (df/txs link)
                  #(reset! a (parse-fb-snapshot %)))
     a))
 

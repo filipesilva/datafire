@@ -17,7 +17,7 @@
            (let [first-name (str "offline-" (rand))
                  second-name (str "offline-" (rand))
                  [conn link path] (test-link {:schema schema 
-                                              :path (str "p-" (rand)) 
+                                              :path (str "tmp/p-" (rand)) 
                                               :name first-name})
                  [another-conn] (test-link {:schema schema
                                             :path path

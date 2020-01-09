@@ -15,7 +15,7 @@
   ([] (test-link {}))
   ([{:keys [schema path name granularity]
      :or {schema {}
-          path (str "rand-path-" (rand))
+          path (str "tmp/rand-path-" (rand))
           name default-test-app
           granularity :tx}}]
   (let [_ (try (.app firebase name)

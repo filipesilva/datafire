@@ -12,18 +12,15 @@
 (defn- server-timestamp []
   (.serverTimestamp (.-FieldValue (.-firestore firebase))))
 
-(defn db-coll [link]
-  (.collection (firestore link) (:path link)))
+(defn db [link]
+  (.doc (firestore link) (:path link)))
 
-(defn logs-coll [link]
-  (.collection (.doc (db-coll link) "log") "logs"))
-
-(defn meta-doc [link]
-  (.doc (db-coll link) "metadata"))
+(defn txs [link]
+  (.collection (db link) "txs"))
 
 (defn- new-seid [link]
   ; Note: this doesn't actually create a doc.
-  (.-id (.doc (logs-coll link))))
+  (.-id (.doc (txs link))))
 
 (defn- datom->op [datom]
   [(if (pos? (:tx datom))
@@ -49,7 +46,7 @@
      (op 3))])
 
 (defn- save-to-firestore! [link tx-data]
-  (let [coll (logs-coll link)
+  (let [coll (txs link)
         granularity (:granularity link)]
     (cond (= granularity :tx) (.add coll #js {:t (dt/write-transit-str tx-data)
                                               :ts (server-timestamp)})
@@ -60,8 +57,9 @@
                                      (.set batch (.doc coll)
                                            #js {:tx tx-id
                                                 :ts (server-timestamp)
+                                                ; Order matters in DS, so we keep it.
+                                                ; https://github.com/tonsky/datascript/issues/172
                                                 :i idx
-                                                ; :e (op 1)
                                                 :d (dt/write-transit-str op)}))
                                    (.commit batch))
           :else (throw (str "Unsupported granularity: " granularity)))))
@@ -120,7 +118,7 @@
         ; we assume client tx happen as soon as they are committed locally.        
         doc-changes (.filter (.docChanges snapshot) #(= (.-type %) "added"))
         length (.-length doc-changes)]
-          ; On tx granularity, each doc is a transaction.
+    ; On tx granularity, each doc is a transaction.
     (cond (= granularity :tx) (loop [idx 0
                                      txs []]
                                 (if (= idx length)
@@ -154,7 +152,7 @@
   ; With :tx granularity, that's a single doc.
   ; With :datom granularity, there's a doc for each datom in the tx, but they are in the same
   ; snapshot because the writes are batched.
-  (.onSnapshot (.orderBy (logs-coll link) "ts")
+  (.onSnapshot (.orderBy (txs link) "ts")
                #(doseq [tx-data (snapshot->txs link %)]
                   (load-transaction! link tx-data))
                error-cb))
