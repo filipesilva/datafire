@@ -1,6 +1,6 @@
 # Datafire
 
-Persist a [Datascript](https://github.com/tonsky/datascript) database in [Firestore](https://firebase.google.com/docs/firestore).
+Persist [Datascript](https://github.com/tonsky/datascript) databases in [Firebase's Firestore](https://firebase.google.com/docs/firestore).
 
 Supports offline usage and multi-user synchronization. 
 You can use [Firestore Security Rules](https://firebase.google.com/docs/firestore/security/get-started) to limit access.

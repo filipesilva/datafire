@@ -1,5 +1,5 @@
 {
-  "name": "datascript-firebase",
+  "name": "datafire",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -17,15 +17,11 @@
     "emulators": "firebase emulators:start"
   },
   "devDependencies": {
-    "@testing-library/dom": "^6.10.1",
-    "@testing-library/react": "^9.3.2",
     "clj-kondo": "2019.11.23",
     "create-react-class": "~15.6.3",
     "firebase": "^7.5.1",
     "firebase-tools": "^7.10.0",
     "highlight.js": "9.16.2",
-    "jsdom": "^15.2.1",
-    "jsdom-global": "^3.0.2",
     "karma": "^4.4.1",
     "karma-chrome-launcher": "^3.1.0",
     "karma-cljs-test": "^0.1.0",
