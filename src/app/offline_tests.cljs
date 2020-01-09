@@ -3,7 +3,7 @@
             [cljs.core.async :refer [go timeout <!]]
             [async-interop.interop :refer [<p!]]
             [devcards.core :refer [deftest]]
-            [datascript-firebase.core :as df]
+            [datafire.core :as df]
             ["firebase/app" :as firebase]
             [app.samples :refer [data schema]]
             [app.test-helpers :refer [test-link pull-lethal-weapon pulled-lethal-weapon-snapshot query-lethal-weapon]]))

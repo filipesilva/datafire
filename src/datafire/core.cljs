@@ -1,4 +1,4 @@
-(ns datascript-firebase.core
+(ns datafire.core
   (:require [datascript.core :as d]
             [datascript.transit :as dt]
             ["firebase/app" :as firebase]

@@ -2,7 +2,7 @@
   (:require [reagent.core]
             [devcards.core :refer [defcard defcard-rg]]
             [datascript.core :as d]
-            [datascript-firebase.core :as df]
+            [datafire.core :as df]
             ["firebase/app" :as firebase]
             [app.test-helpers :refer [test-link]]))
 
@@ -48,7 +48,7 @@
       "Click to clear the firebase emulator database and reload "
       [:input {:type "button" :value "Clear"
                :on-click #(.then (js/fetch
-                                  "http://localhost:8080/emulator/v1/projects/datascript-firebase/databases/(default)/documents"
+                                  "http://localhost:8080/emulator/v1/projects/datafire/databases/(default)/documents"
                                   #js {:method "DELETE"})
                                  (fn [] (.reload js/window.location)))}]]
      [:div
