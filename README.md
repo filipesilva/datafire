@@ -6,6 +6,7 @@ Supports offline usage and multi-user synchronization.
 You can use [Firestore Security Rules](https://firebase.google.com/docs/firestore/security/get-started) to limit access.
 
 ## Usage
+[![Clojars Project](https://img.shields.io/clojars/v/datafire.svg)](https://clojars.org/datafire)
 
 ```Clojure
 (ns app.quickstart
