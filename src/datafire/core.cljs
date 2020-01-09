@@ -143,7 +143,7 @@
                                                 (update txs-map tx-id conj [tx-idx datom]))
                                          (recur (inc idx)
                                                 (conj tx-ids tx-id)
-                                                (conj txs-map 
+                                                (conj txs-map
                                                       [tx-id (sorted-map tx-idx datom)]))))))
           :else (throw (str "Unsupported granularity: " granularity)))))
 
@@ -157,29 +157,34 @@
                   (load-transaction! link tx-data))
                error-cb))
 
-(defn transact! [link tx]
-  (let [report (d/with @(:conn link) tx)
+(defn transact!
+  "Persist tx-data on the link.
+   Returns a promise that resolves when the transaction hits the server.
+   Since the promise won't resolve while offline, it's recommended that you never wait for it."
+  [link tx-data]
+  (let [report (d/with @(:conn link) tx-data)
         refs (:db.type/ref (:rschema @(:conn link)))]
-    (loop [tx-data (:tx-data report)
+    (loop [txs (:tx-data report)
            ops []
            eid->seid (into {} (map #(vector (val %) (new-seid link))
                                    (dissoc (:tempids report) :db/current-tx)))]
-      (if (empty? tx-data)
+      (if (empty? txs)
         (save-to-firestore! link ops)
-        (let [op (datom->op (first tx-data))
+        (let [op (datom->op (first txs))
               eid (op 1)
               new-eid->seid (if (resolve-id eid eid->seid @(:eid->seid link))
                               eid->seid
                               (assoc eid->seid eid (new-seid link)))]
-          (recur (rest tx-data)
+          (recur (rest txs)
                  (conj ops (resolve-op op refs new-eid->seid @(:eid->seid link)))
                  new-eid->seid))))))
 
 (defn create-link
+  "Create a link between a Datascript connection and a Firestore document path."
   ([conn path] (create-link conn path {}))
-  ([conn path {:keys [name granularity] 
+  ([conn path {:keys [name granularity]
                :or {name default-firebase-app
-                    granularity :datom}}]
+                    granularity :tx}}]
    (with-meta
      {:conn conn
       :path path
@@ -189,12 +194,16 @@
       :eid->seid (atom {})}
      {:unsubscribe (atom nil)})))
 
-(defn unlisten! [link]
+(defn unlisten!
+  "Stop listening to transactions on Firebase."
+  [link]
   (let [unsubscribe @(:unsubscribe (meta link))]
     (when unsubscribe (unsubscribe))
     (reset! (:unsubscribe (meta link)) nil)))
 
 (defn listen!
+  "Start listening to transactions on the link and applies them to the Datascript connection.
+   Previous transactions will be loaded onto the Datascript connection."
   ([link] (listen! link js/undefined))
   ([link error-cb]
    (unlisten! link)

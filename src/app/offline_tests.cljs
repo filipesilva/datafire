@@ -11,6 +11,7 @@
 ; This test usually passes after a hard reload, but never passes on a hot reload.
 ; It looks like the second-fs never gets back online. Navigating to other test pages
 ; also causes them to not be able to connect to firestore. A firestore bug maybe?
+; Also noticed that having a default app seems to interfere with persistence in named apps.
 (deftest syncs-offline-transactions
   (async done
          (go
