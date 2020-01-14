@@ -2,7 +2,7 @@
 
 Persist [Datascript](https://github.com/tonsky/datascript) databases in [Firebase's Firestore](https://firebase.google.com/docs/firestore).
 
-Supports offline usage and multi-user synchronization. 
+Supports offline usage and tab synchronization. 
 You can use [Firestore Security Rules](https://firebase.google.com/docs/firestore/security/get-started) to limit access.
 
 ## Usage
