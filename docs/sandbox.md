@@ -1,4 +1,7 @@
-# Notes and TODOs
+# Sandbox
+
+This doc contains assorted notes and todos as I come up with them.
+
 
 ## Notes
 
@@ -26,8 +29,6 @@
 
 - Firestore in offline mode adds a lot of extra load per document fetched, which makes datom granularity much slower than tx granularity.
 
-- With datom granularity it's also possible to use `conn-from-datoms` instead of loading multiple tx, but that'd need a mapping of timestamp->tx-id. Would be faster though.
-
 ### Notes for https://tonsky.me/blog/datascript-internals/:
 
 - Try using the datom eavt array format with added bool flag, get around the need for t somehow. Make a size comparison for large transit. Consider if needed in the datom granularity.
@@ -54,3 +55,5 @@
 - support tx-meta on transact!
 - test permissions model
 - save link info on metadata, validate it's the same on... listen I guess? no, on security rules.
+- use either `conn-from-datoms` or `conn-from-db` to create the db instead of replaying all tx, it's more performant.
+  - this needs a tx number though, so there needs to be a `stx->tx` conversion step too.
