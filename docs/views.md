@@ -17,7 +17,7 @@ view if the client doesn't have at least read access to the log.
 Views can be updated automatically or manually by setting the update policy.
 Automatic updates are performed on any client on log update after a random delay and in batch.
 The random delay and batch helps reduce view churn, and thus costs.
-Validation rules are used to discard updates from older database states in case of conflicts.
+Firebase validation rules are used to discard updates from older database states, according to tx id, ensuring only the latest snapshot is written.
 Views without automatic updates are updated by triggering a manual update via the API.
 Manual updates are useful to keep a point-in-time view.
 

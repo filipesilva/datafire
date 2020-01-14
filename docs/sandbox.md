@@ -57,3 +57,6 @@ This doc contains assorted notes and todos as I come up with them.
 - save link info on metadata, validate it's the same on... listen I guess? no, on security rules.
 - use either `conn-from-datoms` or `conn-from-db` to create the db instead of replaying all tx, it's more performant.
   - this needs a tx number though, so there needs to be a `stx->tx` conversion step too.
+- consider keeping the non-ref attrs separately to scale better after a certain size
+  - e.g. store large strings elsewhere
+  - similar to datalog keeping the indexes that then lazy load content
