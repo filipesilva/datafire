@@ -1,5 +1,7 @@
 (ns datafire.test-helpers
-  (:require [datascript.core :as d]
+  (:require [cljs.core.async :refer [go]]
+            [async-interop.interop :refer [<p!]]
+            [datascript.core :as d]
             [datafire.core :as df]
             ["firebase/app" :as firebase]
             ["firebase/firestore"]))
@@ -18,16 +20,16 @@
           path (str "tmp/rand-path-" (rand))
           name default-test-app
           granularity :tx}}]
-  (let [_ (try (.app firebase name)
-               (catch js/Error _
-                 (let [new-app (.initializeApp firebase firebase-config name)
-                       _ (.settings (.firestore new-app) emulator-settings)
-                       _ (.enablePersistence (.firestore new-app))]
-                   new-app)))
-        conn (d/create-conn schema)
-        link (df/create-link conn path {:name name :granularity granularity})]
-    (df/listen! link)
-    [conn link path name])))
+   (go (let [_ (try (.app firebase name)
+                    (catch js/Error _
+                      (let [new-app (.initializeApp firebase firebase-config name)
+                            _ (.settings (.firestore new-app) emulator-settings)
+                            _ (<p! (.enablePersistence (.firestore new-app)))]
+                        new-app)))
+             conn (d/create-conn schema)
+             link (df/create-link conn path {:name name :granularity granularity})]
+         (df/listen! link)
+         [conn link path name]))))
 
 (defn query-lethal-weapon [conn]
   (d/q '[:find ?e .

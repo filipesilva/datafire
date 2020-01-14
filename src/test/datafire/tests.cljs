@@ -1,6 +1,6 @@
 (ns datafire.tests
   (:require [cljs.test :refer [is async]]
-            [cljs.core.async :refer [go]]
+            [cljs.core.async :refer [go <!]]
             [async-interop.interop :refer [<p!]]
             [devcards.core :refer [deftest]]
             [datafire.core :as df]
@@ -8,14 +8,14 @@
             [datafire.test-helpers :refer [test-link pull-lethal-weapon pulled-lethal-weapon-snapshot]]))
 
 (defn saves-transactions [done granularity]
-  (go (let [[conn link] (test-link {:schema schema :granularity granularity})]
+  (go (let [[conn link] (<! (test-link {:schema schema :granularity granularity}))]
         (<p! (df/transact! link data))
         (is (= (pull-lethal-weapon conn) pulled-lethal-weapon-snapshot))
         (done))))
 
 (defn syncs-transactions [done granularity]
-  (go (let [[_ link path name] (test-link {:schema schema :granularity granularity})
-            [conn] (test-link {:schema schema :path path :name name :granularity granularity})]
+  (go (let [[_ link path name] (<! (test-link {:schema schema :granularity granularity}))
+            [conn] (<! (test-link {:schema schema :path path :name name :granularity granularity}))]
         (<p! (df/transact! link data))
         (is (= (pull-lethal-weapon conn) pulled-lethal-weapon-snapshot))
         (done))))

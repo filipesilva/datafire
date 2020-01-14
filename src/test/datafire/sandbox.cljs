@@ -1,16 +1,18 @@
 (ns datafire.sandbox
   (:require [reagent.core]
             [devcards.core :refer [defcard defcard-rg]]
+            [cljs.core.async :refer [go <!]]
             [datascript.core :as d]
             [datafire.core :as df]
             ["firebase/app" :as firebase]
             [datafire.test-helpers :refer [test-link]]))
 
-(defonce sandbox-test-link (test-link))
-(def conn (sandbox-test-link 0))
-(def link (sandbox-test-link 1))
-(def path (sandbox-test-link 2))
-(def fs (.firestore (.app firebase (sandbox-test-link 3))))
+(defonce sandbox-test-link (atom {}))
+(defonce load-link (go (reset! sandbox-test-link (<! (test-link {})))))
+(defn conn [] (@sandbox-test-link 0))
+(defn link [] (@sandbox-test-link 1))
+(defn path [] (@sandbox-test-link 2))
+(defn fs [] (.firestore (.app firebase (@sandbox-test-link 3))))
 
 (defn parse-fb-snapshot [query-snapshot]
   (map #(assoc (js->clj (.data %) :keywordize-keys true) :id (.-id %))
@@ -18,15 +20,15 @@
 
 (defn firestore-logs-atom []
   (let [a (atom [])]
-    (.onSnapshot (df/txs link)
+    (.onSnapshot (df/txs (link))
                  #(reset! a (parse-fb-snapshot %)))
     a))
 
 (defn add-user [user]
-  (df/transact! link [user]))
+  (df/transact! (link) [user]))
 
 (defn pull-2 []
-  (print (d/pull @conn '[*] 2)))
+  (print (d/pull @(conn) '[*] 2)))
 
 (defn add-ada []
   (let [ada {:db/id -1 :first "Ada" :last "Lovelace" :born "1815"}
@@ -54,14 +56,14 @@
      [:div
       "Click to disable network "
       [:input {:type "button" :value "disable"
-               :on-click #(.disableNetwork fs)}]]
+               :on-click #(.disableNetwork (fs))}]]
      [:div
       "Click to enable network "
       [:input {:type "button" :value "enable"
-               :on-click #(.enableNetwork fs)}]]]))
+               :on-click #(.enableNetwork (fs))}]]]))
 
 (defcard-rg add-ada-card add-ada)
 
-(defcard ds-conn conn)
+(defcard ds-conn (conn))
 
 (defcard firestore-logs (firestore-logs-atom) [] {:history false})
