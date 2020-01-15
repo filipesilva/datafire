@@ -60,3 +60,4 @@ This doc contains assorted notes and todos as I come up with them.
 - consider keeping the non-ref attrs separately to scale better after a certain size
   - e.g. store large strings elsewhere
   - similar to datalog keeping the indexes that then lazy load content
+- add db sync according to last known correct tx order
