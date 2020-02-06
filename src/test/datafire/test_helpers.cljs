@@ -1,6 +1,5 @@
 (ns datafire.test-helpers
   (:require [cljs.core.async :refer [go]]
-            [async-interop.interop :refer [<p!]]
             [datascript.core :as d]
             [datafire.core :as df]
             ["firebase/app" :as firebase]
@@ -23,8 +22,7 @@
    (go (let [_ (try (.app firebase name)
                     (catch js/Error _
                       (let [new-app (.initializeApp firebase firebase-config name)
-                            _ (.settings (.firestore new-app) emulator-settings)
-                            _ (<p! (.enablePersistence (.firestore new-app)))]
+                            _ (.settings (.firestore new-app) emulator-settings)]
                         new-app)))
              conn (d/create-conn schema)
              link (df/create-link conn path {:name name :granularity granularity})]
