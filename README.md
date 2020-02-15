@@ -9,7 +9,7 @@ You can use [Firestore Security Rules](https://firebase.google.com/docs/firestor
 [![Clojars Project](https://img.shields.io/clojars/v/datafire.svg)](https://clojars.org/datafire)
 
 ```Clojure
-:dependencies [[datascript "0.18.7"]
+:dependencies [[datascript "0.18.9"]
                [datascript-transit "0.3.0"]
                [datafire "0.1.1"]]
 ```

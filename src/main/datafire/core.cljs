@@ -163,21 +163,14 @@
    Since the promise won't resolve while offline, it's recommended that you never wait for it."
   [link tx-data]
   (let [report (d/with @(:conn link) tx-data)
-        refs (:db.type/ref (:rschema @(:conn link)))]
-    (loop [txs (:tx-data report)
-           ops []
-           eid->seid (into {} (map #(vector (val %) (new-seid link))
-                                   (dissoc (:tempids report) :db/current-tx)))]
-      (if (empty? txs)
-        (save-to-firestore! link ops)
-        (let [op (datom->op (first txs))
-              eid (op 1)
-              new-eid->seid (if (resolve-id eid eid->seid @(:eid->seid link))
-                              eid->seid
-                              (assoc eid->seid eid (new-seid link)))]
-          (recur (rest txs)
-                 (conj ops (resolve-op op refs new-eid->seid @(:eid->seid link)))
-                 new-eid->seid))))))
+        eid->seid (into {} (map #(vector (val %) (new-seid link))
+                                (dissoc (:tempids report) :db/current-tx)))
+        resolved-ops (map #(resolve-op (datom->op %)
+                                       (:db.type/ref (:rschema @(:conn link)))
+                                       eid->seid
+                                       @(:eid->seid link)) 
+                          (:tx-data report))]
+    (save-to-firestore! link resolved-ops)))
 
 (defn create-link
   "Create a link between a Datascript connection and a Firestore document path."

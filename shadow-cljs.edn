@@ -16,7 +16,7 @@
                 [async-interop "0.1.4"]
                 [reagent "0.8.1"]
                 [devcards "0.2.6"]
-                [datascript "0.18.7"]
+                [datascript "0.18.9"]
                 [datascript-transit "0.3.0"]]
  :dev-http {3000 "public"}
  :nrepl {:port 3333}
